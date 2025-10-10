@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+        xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+        xmlns:tns="http://Digipro.servicios/WsImagenes/WsImagenes"
+        xmlns:s1="http://Digipro.servicios/WsUsuarios/WsUsuarios"
+        targetNamespace="http://Digipro.servicios/WsImagenes/WsImagenes"
+        name="WsImagenes">
+
+    <wsdl:types>
+        <!-- ===== Schema for WsUsuarios (s1) ===== -->
+        <xsd:schema targetNamespace="http://Digipro.servicios/WsUsuarios/WsUsuarios" elementFormDefault="qualified">
+            <xsd:complexType name="Respuesta">
+                <xsd:sequence>
+                    <xsd:element name="Codigo" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="Mensaje" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="Detalle" type="xsd:string" minOccurs="0"/>
+                </xsd:sequence>
+            </xsd:complexType>
+            <xsd:complexType name="IDTicket">
+                <xsd:sequence>
+                    <xsd:element name="TicketID" type="xsd:base64Binary"/>
+                    <xsd:element name="UsrID" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="ProyectoID" type="xsd:int"/>
+                    <xsd:element name="VersionAplicacionID" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="FechaHoraInicio" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="FechaHoraUltimoAcceso" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="TiempoVida" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="TiempoRestante" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="Expirado" type="xsd:boolean" minOccurs="0"/>
+                    <xsd:element name="GrupoAdminID" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="ClienteID" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="PerfilUsuarioID" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="TiempoVidaPwd" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="TiempoActualizoPwd" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="NoIdentidad" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="FechaUltLogin" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="DuracionDias" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="AvisoCaducidadPwdDias" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="FechaCreacionPwd" type="xsd:string" minOccurs="0"/>
+                </xsd:sequence>
+            </xsd:complexType>
+        </xsd:schema>
+
+        <!-- ===== Schema for WsImagenes (tns) ===== -->
+        <xsd:schema targetNamespace="http://Digipro.servicios/WsImagenes/WsImagenes" elementFormDefault="qualified">
+            <xsd:import namespace="http://Digipro.servicios/WsUsuarios/WsUsuarios"/>
+
+            <!-- llaves -->
+            <xsd:complexType name="clsLlaveCampo">
+                <xsd:sequence>
+                    <xsd:element name="Campo" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="Valor" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="TipoDato" type="xsd:int" minOccurs="0"/>
+                </xsd:sequence>
+            </xsd:complexType>
+
+            <xsd:complexType name="ArrayOfClsLlaveCampo">
+                <xsd:sequence>
+                    <xsd:element name="clsLlaveCampo" type="tns:clsLlaveCampo" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+
+            <xsd:complexType name="clsLlaveExpediente">
+                <xsd:sequence>
+                    <xsd:element name="TipoDocIDPadre" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="Campos" type="tns:ArrayOfClsLlaveCampo" minOccurs="0"/>
+                </xsd:sequence>
+            </xsd:complexType>
+
+            <!-- files -->
+            <xsd:complexType name="clsFileHSM">
+                <xsd:sequence>
+                    <xsd:element name="TipoDocIdGrupo" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="ArrayFile" type="xsd:base64Binary" minOccurs="0"/>
+                    <xsd:element name="Ext" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="Consecutivo" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="Separador" type="xsd:boolean" minOccurs="0"/>
+                    <xsd:element name="FechaDigitalizacion" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="TipoDocID" type="xsd:int" minOccurs="0"/>
+                    <xsd:element name="Descripcion" type="xsd:string" minOccurs="0"/>
+                    <xsd:element name="DocID" type="xsd:long" minOccurs="0"/>
+                    <xsd:element name="DocPID" type="xsd:long" minOccurs="0"/>
+                    <xsd:element name="CreatedBy" type="xsd:long" minOccurs="0"/>
+                </xsd:sequence>
+            </xsd:complexType>
+
+            <xsd:complexType name="ArrayOfClsFileHSM">
+                <xsd:sequence>
+                    <xsd:element name="clsFileHSM" type="tns:clsFileHSM" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+
+            <!-- ===== Wrappers ===== -->
+            <!-- ObtenLogin -->
+            <xsd:element name="ObtenLogin">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="UserID" type="xsd:string" minOccurs="0"/>
+                        <xsd:element name="strPwd" type="xsd:string" minOccurs="0"/>
+                        <xsd:element name="ProyectoID" type="xsd:int"/>
+                        <xsd:element name="IP" type="xsd:string" minOccurs="0"/>
+                        <xsd:element name="strOrigen" type="xsd:string" minOccurs="0"/>
+                        <xsd:element name="rRespuesta" type="s1:Respuesta" minOccurs="0"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+
+            <xsd:element name="ObtenLoginResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="ObtenLoginResult" type="s1:IDTicket" minOccurs="0"/>
+                        <xsd:element name="rRespuesta" type="s1:Respuesta" minOccurs="0"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+
+            <!-- ContestaExpedientexLlave -->
+            <xsd:element name="ContestaExpedientexLlave">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="Ticket" type="s1:IDTicket" minOccurs="0"/>
+                        <xsd:element name="llave" type="tns:clsLlaveExpediente" minOccurs="0"/>
+                        <xsd:element name="ProyID" type="xsd:short"/>
+                        <xsd:element name="ExpedienteID" type="xsd:short"/>
+                        <xsd:element name="TipoDocID" type="xsd:int"/>
+                        <xsd:element name="rRespuesta" type="s1:Respuesta" minOccurs="0"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+
+            <xsd:element name="ContestaExpedientexLlaveResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="ContestaExpedientexLlaveResult" type="tns:ArrayOfClsFileHSM" minOccurs="0"/>
+                        <xsd:element name="Ticket" type="s1:IDTicket" minOccurs="0"/>
+                        <xsd:element name="rRespuesta" type="s1:Respuesta" minOccurs="0"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+
+            <!-- ContestaFileHSM -->
+            <xsd:element name="ContestaFileHSM">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="DocID" type="xsd:long"/>
+                        <xsd:element name="ProyID" type="xsd:int"/>
+                        <xsd:element name="ExpedienteID" type="xsd:long"/>
+                        <xsd:element name="Ticket" type="s1:IDTicket" minOccurs="0"/>
+                        <xsd:element name="rRespuesta" type="s1:Respuesta" minOccurs="0"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+
+            <xsd:element name="ContestaFileHSMResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="ContestaFileHSMResult" type="tns:clsFileHSM" minOccurs="0"/>
+                        <xsd:element name="Ticket" type="s1:IDTicket" minOccurs="0"/>
+                        <xsd:element name="rRespuesta" type="s1:Respuesta" minOccurs="0"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+
+        </xsd:schema>
+    </wsdl:types>
+
+    <!-- messages -->
+    <wsdl:message name="ObtenLoginRequest"><wsdl:part name="parameters" element="tns:ObtenLogin"/></wsdl:message>
+    <wsdl:message name="ObtenLoginResponse"><wsdl:part name="parameters" element="tns:ObtenLoginResponse"/></wsdl:message>
+
+    <wsdl:message name="ContestaExpedientexLlaveRequest"><wsdl:part name="parameters" element="tns:ContestaExpedientexLlave"/></wsdl:message>
+    <wsdl:message name="ContestaExpedientexLlaveResponse"><wsdl:part name="parameters" element="tns:ContestaExpedientexLlaveResponse"/></wsdl:message>
+
+    <wsdl:message name="ContestaFileHSMRequest"><wsdl:part name="parameters" element="tns:ContestaFileHSM"/></wsdl:message>
+    <wsdl:message name="ContestaFileHSMResponse"><wsdl:part name="parameters" element="tns:ContestaFileHSMResponse"/></wsdl:message>
+
+    <!-- portType -->
+    <wsdl:portType name="WsImagenesSoap">
+        <wsdl:operation name="ObtenLogin">
+            <wsdl:input message="tns:ObtenLoginRequest"/>
+            <wsdl:output message="tns:ObtenLoginResponse"/>
+        </wsdl:operation>
+        <wsdl:operation name="ContestaExpedientexLlave">
+            <wsdl:input message="tns:ContestaExpedientexLlaveRequest"/>
+            <wsdl:output message="tns:ContestaExpedientexLlaveResponse"/>
+        </wsdl:operation>
+        <wsdl:operation name="ContestaFileHSM">
+            <wsdl:input message="tns:ContestaFileHSMRequest"/>
+            <wsdl:output message="tns:ContestaFileHSMResponse"/>
+        </wsdl:operation>
+    </wsdl:portType>
+
+    <!-- bindings -->
+    <wsdl:binding name="WsImagenesSoap" type="tns:WsImagenesSoap">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="ObtenLogin">
+            <soap:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ObtenLogin"/>
+            <wsdl:input><soap:body use="literal"/></wsdl:input>
+            <wsdl:output><soap:body use="literal"/></wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="ContestaExpedientexLlave">
+            <soap:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ContestaExpedientexLlave"/>
+            <wsdl:input><soap:body use="literal"/></wsdl:input>
+            <wsdl:output><soap:body use="literal"/></wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="ContestaFileHSM">
+            <soap:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ContestaFileHSM"/>
+            <wsdl:input><soap:body use="literal"/></wsdl:input>
+            <wsdl:output><soap:body use="literal"/></wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+
+    <wsdl:binding name="WsImagenesSoap12" type="tns:WsImagenesSoap">
+        <soap12:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <wsdl:operation name="ObtenLogin">
+            <soap12:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ObtenLogin"/>
+            <wsdl:input><soap12:body use="literal"/></wsdl:input>
+            <wsdl:output><soap12:body use="literal"/></wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="ContestaExpedientexLlave">
+            <soap12:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ContestaExpedientexLlave"/>
+            <wsdl:input><soap12:body use="literal"/></wsdl:input>
+            <wsdl:output><soap12:body use="literal"/></wsdl:output>
+        </wsdl:operation>
+        <wsdl:operation name="ContestaFileHSM">
+            <soap12:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ContestaFileHSM"/>
+            <wsdl:input><soap12:body use="literal"/></wsdl:input>
+            <wsdl:output><soap12:body use="literal"/></wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+
+    <!-- service -->
+    <wsdl:service name="WsImagenes">
+        <wsdl:port name="WsImagenesSoap" binding="tns:WsImagenesSoap">
+            <soap:address location="http://localhost:8180/soap-images-service/WsImagenes"/>
+        </wsdl:port>
+        <wsdl:port name="WsImagenesSoap12" binding="tns:WsImagenesSoap12">
+            <soap12:address location="http://localhost:8180/soap-images-service/WsImagenes"/>
+        </wsdl:port>
+    </wsdl:service>
+
+</wsdl:definitions>
