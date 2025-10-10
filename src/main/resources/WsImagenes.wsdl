@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wsdl:definitions
+        xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+        xmlns:tns="http://Digipro.servicios/WsImagenes/WsImagenes"
+        xmlns:s1="http://Digipro.servicios/WsUsuarios/WsUsuarios"
+        xmlns:s="http://www.w3.org/2001/XMLSchema"
+        xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/"
+        targetNamespace="http://Digipro.servicios/WsImagenes/WsImagenes"
+        xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">
+
+    <wsdl:types>
+        <s:schema elementFormDefault="qualified" targetNamespace="http://Digipro.servicios/WsImagenes/WsImagenes">
+            <s:import namespace="http://Digipro.servicios/WsUsuarios/WsUsuarios" />
+
+            <!-- ObtenLogin Request/Response -->
+            <s:element name="ObtenLogin">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="UsrID" type="s:string" />
+                        <s:element minOccurs="0" maxOccurs="1" name="Pwd" type="s:string" />
+                        <s:element minOccurs="1" maxOccurs="1" name="ProyectoID" type="s:int" />
+                        <s:element minOccurs="0" maxOccurs="1" name="IP" type="s:string" />
+                        <s:element minOccurs="0" maxOccurs="1" name="VersionApp" type="s:string" />
+                        <s:element minOccurs="0" maxOccurs="1" name="rRespuesta" type="s1:Respuesta" />
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+
+            <s:element name="ObtenLoginResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="ObtenLoginResult" type="s1:IDTicket" />
+                        <s:element minOccurs="0" maxOccurs="1" name="rRespuesta" type="s1:Respuesta" />
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+
+            <!-- ContestaExpedientexLlave Request/Response -->
+            <s:element name="ContestaExpedientexLlave">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="Ticket" type="s1:IDTicket" />
+                        <s:element minOccurs="0" maxOccurs="1" name="llave" type="tns:clsLlaveExpediente" />
+                        <s:element minOccurs="1" maxOccurs="1" name="ProyID" type="s:short" />
+                        <s:element minOccurs="1" maxOccurs="1" name="ExpedienteID" type="s:short" />
+                        <s:element minOccurs="1" maxOccurs="1" name="TipoDocID" type="s:int" />
+                        <s:element minOccurs="0" maxOccurs="1" name="rRespuesta" type="s1:Respuesta" />
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+
+            <s:complexType name="clsLlaveExpediente">
+                <s:sequence>
+                    <s:element minOccurs="1" maxOccurs="1" name="TipoDocIDPadre" type="s:int" />
+                    <s:element minOccurs="0" maxOccurs="1" name="Campos" type="tns:ArrayOfClsLlaveCampo" />
+                </s:sequence>
+            </s:complexType>
+
+            <s:complexType name="ArrayOfClsLlaveCampo">
+                <s:sequence>
+                    <s:element minOccurs="0" maxOccurs="unbounded" name="clsLlaveCampo" nillable="true" type="tns:clsLlaveCampo" />
+                </s:sequence>
+            </s:complexType>
+
+            <s:complexType name="clsLlaveCampo">
+                <s:sequence>
+                    <s:element minOccurs="0" maxOccurs="1" name="Campo" type="s:string" />
+                    <s:element minOccurs="0" maxOccurs="1" name="Valor" type="s:string" />
+                    <s:element minOccurs="1" maxOccurs="1" name="TipoDato" type="s:int" />
+                </s:sequence>
+            </s:complexType>
+
+            <s:element name="ContestaExpedientexLlaveResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="ContestaExpedientexLlaveResult" type="tns:ArrayOfClsFileHSM" />
+                        <s:element minOccurs="0" maxOccurs="1" name="Ticket" type="s1:IDTicket" />
+                        <s:element minOccurs="0" maxOccurs="1" name="rRespuesta" type="s1:Respuesta" />
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+
+            <!-- ContestaFileHSM Request/Response -->
+            <s:element name="ContestaFileHSM">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="1" maxOccurs="1" name="DocID" type="s:long" />
+                        <s:element minOccurs="1" maxOccurs="1" name="ProyID" type="s:short" />
+                        <s:element minOccurs="1" maxOccurs="1" name="DocIDPadreExp" type="s:long" />
+                        <s:element minOccurs="0" maxOccurs="1" name="Ticket" type="s1:IDTicket" />
+                        <s:element minOccurs="0" maxOccurs="1" name="rRespuesta" type="s1:Respuesta" />
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+
+            <s:element name="ContestaFileHSMResponse">
+                <s:complexType>
+                    <s:sequence>
+                        <s:element minOccurs="0" maxOccurs="1" name="ContestaFileHSMResult" type="tns:clsFileHSM" />
+                        <s:element minOccurs="0" maxOccurs="1" name="Ticket" type="s1:IDTicket" />
+                        <s:element minOccurs="0" maxOccurs="1" name="rRespuesta" type="s1:Respuesta" />
+                    </s:sequence>
+                </s:complexType>
+            </s:element>
+
+            <!-- clsFileHSM -->
+            <s:complexType name="ArrayOfClsFileHSM">
+                <s:sequence>
+                    <s:element minOccurs="0" maxOccurs="unbounded" name="clsFileHSM" nillable="true" type="tns:clsFileHSM" />
+                </s:sequence>
+            </s:complexType>
+
+            <s:complexType name="clsFileHSM">
+                <s:sequence>
+                    <s:element minOccurs="1" maxOccurs="1" name="TipoDocIdGrupo" type="s:int" />
+                    <s:element minOccurs="0" maxOccurs="1" name="ArrayFile" type="s:base64Binary" />
+                    <s:element minOccurs="0" maxOccurs="1" name="Ext" type="s:string" />
+                    <s:element minOccurs="1" maxOccurs="1" name="Consecutivo" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="Separador" type="s:boolean" />
+                    <s:element minOccurs="0" maxOccurs="1" name="FechaDigitalizacion" type="s:string" />
+                    <s:element minOccurs="1" maxOccurs="1" name="TipoDocID" type="s:int" />
+                    <s:element minOccurs="0" maxOccurs="1" name="Descripcion" type="s:string" />
+                    <s:element minOccurs="1" maxOccurs="1" name="DocID" type="s:long" />
+                    <s:element minOccurs="1" maxOccurs="1" name="DocPID" type="s:long" />
+                    <s:element minOccurs="1" maxOccurs="1" name="CreatedBy" type="s:long" />
+                </s:sequence>
+            </s:complexType>
+
+        </s:schema>
+
+        <!-- Schema para IDTicket y Respuesta -->
+        <s:schema elementFormDefault="qualified" targetNamespace="http://Digipro.servicios/WsUsuarios/WsUsuarios">
+
+            <s:complexType name="IDTicket">
+                <s:sequence>
+                    <s:element minOccurs="0" maxOccurs="1" name="TicketID" type="s:base64Binary" />
+                    <s:element minOccurs="0" maxOccurs="1" name="UsrID" type="s:string" />
+                    <s:element minOccurs="0" maxOccurs="1" name="IP" type="s:string" />
+                    <s:element minOccurs="1" maxOccurs="1" name="ProyectoID" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="VersionAplicacionID" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="FechaHoraInicio" type="s:dateTime" />
+                    <s:element minOccurs="1" maxOccurs="1" name="FechaHoraUltimoAcceso" type="s:dateTime" />
+                    <s:element minOccurs="1" maxOccurs="1" name="TiempoVida" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="TiempoRestante" type="s:int" />
+                    <s:element minOccurs="0" maxOccurs="1" name="NombreCompleto" type="s:string" />
+                    <s:element minOccurs="0" maxOccurs="1" name="NombreUsuario" type="s:string" />
+                    <s:element minOccurs="1" maxOccurs="1" name="GrupoAdminID" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="ClienteID" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="PerfilUsuarioID" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="TiempoVidaPwd" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="TiempoActualizoPwd" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="NoIdentidad" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="FechaUltLogin" type="s:dateTime" />
+                    <s:element minOccurs="1" maxOccurs="1" name="DuracionDias" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="AvisoCaducidadPwdDias" type="s:int" />
+                    <s:element minOccurs="1" maxOccurs="1" name="FechaCreacionPwd" type="s:dateTime" />
+                    <s:element minOccurs="0" maxOccurs="1" name="RespuestaID" type="s:string" />
+                </s:sequence>
+            </s:complexType>
+
+            <s:complexType name="Respuesta">
+                <s:sequence>
+                    <s:element minOccurs="0" maxOccurs="1" name="RespuestaID" type="s:string" />
+                    <s:element minOccurs="0" maxOccurs="1" name="Categoria" type="s:string" />
+                    <s:element minOccurs="0" maxOccurs="1" name="DescripcionCategoria" type="s:string" />
+                    <s:element minOccurs="0" maxOccurs="1" name="DescripcionRespuesta" type="s:string" />
+                    <s:element minOccurs="0" maxOccurs="1" name="RespuestaToString" type="s:string" />
+                </s:sequence>
+            </s:complexType>
+
+        </s:schema>
+    </wsdl:types>
+
+    <!-- Messages -->
+    <wsdl:message name="ObtenLoginSoapIn">
+        <wsdl:part name="parameters" element="tns:ObtenLogin" />
+    </wsdl:message>
+    <wsdl:message name="ObtenLoginSoapOut">
+        <wsdl:part name="parameters" element="tns:ObtenLoginResponse" />
+    </wsdl:message>
+
+    <wsdl:message name="ContestaExpedientexLlaveSoapIn">
+        <wsdl:part name="parameters" element="tns:ContestaExpedientexLlave" />
+    </wsdl:message>
+    <wsdl:message name="ContestaExpedientexLlaveSoapOut">
+        <wsdl:part name="parameters" element="tns:ContestaExpedientexLlaveResponse" />
+    </wsdl:message>
+
+    <wsdl:message name="ContestaFileHSMSoapIn">
+        <wsdl:part name="parameters" element="tns:ContestaFileHSM" />
+    </wsdl:message>
+    <wsdl:message name="ContestaFileHSMSoapOut">
+        <wsdl:part name="parameters" element="tns:ContestaFileHSMResponse" />
+    </wsdl:message>
+
+    <!-- Port Type -->
+    <wsdl:portType name="WsImagenesSoap">
+        <wsdl:operation name="ObtenLogin">
+            <wsdl:input message="tns:ObtenLoginSoapIn" />
+            <wsdl:output message="tns:ObtenLoginSoapOut" />
+        </wsdl:operation>
+        <wsdl:operation name="ContestaExpedientexLlave">
+            <wsdl:input message="tns:ContestaExpedientexLlaveSoapIn" />
+            <wsdl:output message="tns:ContestaExpedientexLlaveSoapOut" />
+        </wsdl:operation>
+        <wsdl:operation name="ContestaFileHSM">
+            <wsdl:input message="tns:ContestaFileHSMSoapIn" />
+            <wsdl:output message="tns:ContestaFileHSMSoapOut" />
+        </wsdl:operation>
+    </wsdl:portType>
+
+    <!-- SOAP 1.1 Binding -->
+    <wsdl:binding name="WsImagenesSoap" type="tns:WsImagenesSoap">
+        <soap:binding transport="http://schemas.xmlsoap.org/soap/http" />
+
+        <wsdl:operation name="ObtenLogin">
+            <soap:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ObtenLogin" style="document" />
+            <wsdl:input>
+                <soap:body use="literal" />
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" />
+            </wsdl:output>
+        </wsdl:operation>
+
+        <wsdl:operation name="ContestaExpedientexLlave">
+            <soap:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ContestaExpedientexLlave" style="document" />
+            <wsdl:input>
+                <soap:body use="literal" />
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" />
+            </wsdl:output>
+        </wsdl:operation>
+
+        <wsdl:operation name="ContestaFileHSM">
+            <soap:operation soapAction="http://Digipro.servicios/WsImagenes/WsImagenes/ContestaFileHSM" style="document" />
+            <wsdl:input>
+                <soap:body use="literal" />
+            </wsdl:input>
+            <wsdl:output>
+                <soap:body use="literal" />
+            </wsdl:output>
+        </wsdl:operation>
+    </wsdl:binding>
+
+    <!-- Service -->
+    <wsdl:service name="WsImagenes">
+        <wsdl:port name="WsImagenesSoap" binding="tns:WsImagenesSoap">
+            <soap:address location="http://localhost:8180/idportal-ws-emulator/WsImagenes" />
+        </wsdl:port>
+    </wsdl:service>
+
+</wsdl:definitions>
