@@ -2,6 +2,8 @@ package mx.com.actinver.orquestador.ws.endpoint;
 
 import mx.com.actinver.conf.DynamicString;
 import mx.com.actinver.orquestador.util.DynamicProperty;
+import mx.com.actinver.orquestador.ws.generated.ClsLlaveExpediente;
+import mx.com.actinver.orquestador.ws.generated.ContestaExpedientexLlaveRequest;
 import mx.com.actinver.orquestador.ws.proxy.PassthroughSoapClient;
 import mx.com.actinver.orquestador.ws.util.BypassRouter;
 import mx.com.actinver.orquestador.ws.util.SoapUtils;
@@ -13,7 +15,12 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBElement;
+import javax.xml.bind.Unmarshaller;
+import javax.xml.transform.stream.StreamSource;
 import java.io.IOException;
+import java.io.StringReader;
 
 @RestController
 @RequestMapping("/WSImagenes")
@@ -53,34 +60,46 @@ public class SoapPassthroughController {
     @PostMapping(consumes="text/xml", produces="text/xml")
     public ResponseEntity<String> handle(@RequestBody String rawXml) {
         LOG.info("peticion a idPortal: {}", idPortalUrl);
-        this.client = new PassthroughSoapClient(idPortalUrl.toString());
-        /* Descubrimos la operación (local‐part) con StAX
-              → ultra-rápido, sin JAXB                           */
         String op = SoapUtils.getOperationLocalPart(rawXml);
+        LOG.info("Operación SOAP recibida: {}", op);
 
-        /* Decisión */
-        BypassRouter.Decision decision = router.decide(op, rawXml);
+        // Decidir destino (bypass vs local) usando el router y, si aplica, parseando la llave
+        BypassRouter.Decision decision;
+        ClsLlaveExpediente llaveExp = null;
+        if ("ContestaExpedientexLlave".equals(op)) {
+            try {
+                JAXBContext ctx = JAXBContext.newInstance(ContestaExpedientexLlaveRequest.class);
+                Unmarshaller um = ctx.createUnmarshaller();
+                JAXBElement<ContestaExpedientexLlaveRequest> reqElem =
+                        um.unmarshal(new StreamSource(new StringReader(rawXml)), ContestaExpedientexLlaveRequest.class);
+                ContestaExpedientexLlaveRequest requestObj = reqElem.getValue();
+                llaveExp = requestObj != null ? requestObj.getLlave() : null;
+            } catch (Exception e) {
+                LOG.error("Error unmarshalling ContestaExpedientexLlaveRequest", e);
+            }
+        }
 
+        decision = router.decide(op, llaveExp);
+        this.client = new PassthroughSoapClient(idPortalUrl.toString());
+
+        // Ejecutar según la decisión
         if (decision == BypassRouter.Decision.BYPASS) {
-            /*  → reenvío íntegro al servidor legacy */
+            // Reenvío íntegro al sistema legacy (consulta histórica)
             try {
                 String rawOut = client.invokeRaw(rawXml);
-                return ResponseEntity.ok()
-                        .contentType(MediaType.TEXT_XML)
-                        .body(rawOut);
+                return ResponseEntity.ok().contentType(MediaType.TEXT_XML).body(rawOut);
             } catch (IOException io) {
+                // Error comunicando con legacy: devolver Fault SOAP
                 return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                         .contentType(MediaType.TEXT_XML)
                         .body(buildSoapFault(io.getMessage()));
             }
+        } else {
+            // Procesamiento interno (consulta moderna)
+            String respuestaXml = procesarInternamente(op, rawXml);
+            LOG.info("Respuesta interna generada para {}: {}", op, respuestaXml);
+            return ResponseEntity.ok().contentType(MediaType.TEXT_XML).body(respuestaXml);
         }
-
-        /* 3) Lógica interna (sólo para operaciones modernas)  */
-        String resp = procesarInternamente(op, rawXml);
-        LOG.info("Respuesta: {}", resp);
-        return ResponseEntity.ok()
-                .contentType(MediaType.TEXT_XML)
-                .body(resp);
     }
 
     /**
