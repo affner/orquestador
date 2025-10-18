@@ -1,14 +1,17 @@
 package mx.com.actinver.orquestador.ws.service;
 
-import mx.com.actinver.orquestador.ws.generated.ArrayOfClsFileHSM;
-import mx.com.actinver.orquestador.ws.generated.ClsFileHSM;
-import mx.com.actinver.orquestador.ws.generated.ClsLlaveExpediente;
+import mx.com.actinver.orquestador.ws.generated.*;
 import mx.com.actinver.orquestador.ws.usuarios.IDTicket;
 import mx.com.actinver.orquestador.ws.usuarios.Respuesta;
+import org.springframework.ws.server.endpoint.annotation.RequestPayload;
+
+import javax.xml.transform.stream.StreamSource;
 
 public interface WsImagenesService {
-    IDTicket obtenLogin(String userID, String pwd, int proyectoID, String ip, String origen, Respuesta respuestaHolder);
-    ArrayOfClsFileHSM contestaExpedientexLlave(IDTicket ticket, ClsLlaveExpediente llave, short proyID, short expedienteID, int tipoDocID, Respuesta respuestaHolder);
-    ClsFileHSM contestaFileHSM(long docID, int proyID, long expedienteID, IDTicket ticket, Respuesta respuestaHolder);
+
+    // nuevos métodos: responden ya marshalleados / listos para el endpoint
+    StreamSource obtenLoginResponse(ObtenLoginRequest req) throws Exception;
+    StreamSource contestaExpedientexLlaveResponse(ContestaExpedientexLlaveRequest req) throws Exception;
+    StreamSource contestaFileHSMResponse(ContestaFileHSMRequest req) throws Exception;
 
 }

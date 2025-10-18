@@ -1,15 +1,28 @@
 package mx.com.actinver.orquestador.ws.generated;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import javax.xml.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "ClsLlaveExpediente", propOrder = {"campos"})
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ClsLlaveExpediente {
 
-    @XmlElementWrapper(name="Campos")
-    @XmlElement(name="ClsLlaveCampo")
+    /**
+     * Mapea:
+     * <Campos>
+     *   <clsLlaveCampo>...</clsLlaveCampo>
+     * </Campos>
+     */
+    @XmlElementWrapper(name = "Campos")
+    @XmlElement(name = "clsLlaveCampo")
     protected List<ClsLlaveCampo> campos;
 
     public List<ClsLlaveCampo> getCampos() {

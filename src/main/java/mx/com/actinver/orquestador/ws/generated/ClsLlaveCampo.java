@@ -2,17 +2,32 @@ package mx.com.actinver.orquestador.ws.generated;
 
 import javax.xml.bind.annotation.*;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+
+/**
+ * Mapea exactamente la estructura:
+ * <wsim:clsLlaveCampo>
+ *   <wsim:Campo>...</wsim:Campo>
+ *   <wsim:Valor>...</wsim:Valor>
+ * </wsim:clsLlaveCampo>
+ */
 @XmlAccessorType(XmlAccessType.FIELD)
-@XmlType(name = "ClsLlaveCampo", propOrder = {"nombre","valor"})
+@XmlType(name = "ClsLlaveCampo", propOrder = {"campo", "valor", "tipoDato"})
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ClsLlaveCampo {
-    @XmlElement(name="Nombre")
-    protected String nombre;
-    @XmlElement(name="Valor")
+
+    @XmlElement(name = "Campo")
+    protected String campo;
+
+    @XmlElement(name = "Valor")
     protected String valor;
 
-    public String getNombre() { return nombre; }
-    public void setNombre(String nombre) { this.nombre = nombre; }
-
-    public String getValor() { return valor; }
-    public void setValor(String valor) { this.valor = valor; }
+    @XmlElement(name = "TipoDato")
+    protected String tipoDato;
 }
+
