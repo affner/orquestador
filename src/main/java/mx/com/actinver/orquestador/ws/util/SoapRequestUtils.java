@@ -2,6 +2,10 @@ package mx.com.actinver.orquestador.ws.util;
 
 
 import mx.com.actinver.conf.DynamicString;
+import mx.com.actinver.orquestador.dto.LlaveMetadataDto;
+import mx.com.actinver.orquestador.ws.Decision;
+import mx.com.actinver.orquestador.ws.generated.ClsLlaveCampo;
+import mx.com.actinver.orquestador.ws.generated.ClsLlaveExpediente;
 import org.apache.commons.codec.binary.Base64;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
@@ -26,11 +30,14 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.chrono.ChronoLocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.GregorianCalendar;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -106,10 +113,70 @@ public class SoapRequestUtils {
         return (Element) n;
     }
     public <T> T unmarshalFromSoapBody(String rawXml, Class<T> clazz) throws Exception {
-        Document doc = parseNsAware(sanitize(rawXml));
-        Element payload = getFirstBodyChild(doc);
-        if (payload == null) return null;
+        String xml = sanitize(rawXml);
+        Element payload = null;
+        Exception primaryException = null;
 
+        try {
+            Document doc = parseNsAware(xml);
+            payload = getFirstBodyChild(doc);
+        } catch (Exception e) {
+            primaryException = e;
+        }
+
+        if (payload == null) {
+            payload = getFirstBodyChildSaaj(xml);
+            if (payload != null) {
+                LOG.debug("SOAP payload resuelto mediante fallback SAAJ (versión agnóstica)");
+            }
+        }
+
+        if (payload == null) {
+            if (primaryException != null) {
+                throw primaryException;
+            }
+            return null;
+        }
+
+        return unmarshalPayload(payload, clazz);
+    }
+
+    private Element getFirstBodyChildSaaj(String xml) {
+        byte[] bytes = xml.getBytes(StandardCharsets.UTF_8);
+        String[][] candidates = new String[][]{
+                {SOAPConstants.SOAP_1_1_PROTOCOL, "text/xml"},
+                {SOAPConstants.SOAP_1_2_PROTOCOL, "application/soap+xml"}
+        };
+
+        for (String[] candidate : candidates) {
+            String protocol = candidate[0];
+            try {
+                MessageFactory mf = MessageFactory.newInstance(protocol);
+                MimeHeaders headers = new MimeHeaders();
+                headers.addHeader("Content-Type", candidate[1]);
+                SOAPMessage message = mf.createMessage(headers, new ByteArrayInputStream(bytes));
+                SOAPBody body = message.getSOAPBody();
+                if (body == null) {
+                    continue;
+                }
+                Iterator<?> it = body.getChildElements();
+                while (it.hasNext()) {
+                    Object node = it.next();
+                    if (node instanceof SOAPElement) {
+                        SOAPElement soapElement = (SOAPElement) node;
+                        if (soapElement.getNodeType() == Node.ELEMENT_NODE) {
+                            return soapElement;
+                        }
+                    }
+                }
+            } catch (SOAPException | IOException ex) {
+                LOG.debug("SAAJ fallback SOAP parsing failed for protocol {}: {}", protocol, ex.getMessage());
+            }
+        }
+        return null;
+    }
+
+    private <T> T unmarshalPayload(Element payload, Class<T> clazz) throws Exception {
         JAXBContext ctx = getPackageContext(); // tu contexto por paquetes (con TCCL)
         try {
             Unmarshaller um = ctx.createUnmarshaller();
@@ -140,44 +207,6 @@ public class SoapRequestUtils {
         }
     }
 
-
-
-
-    public <T> T unmarshalFromSoapBody(String rawXml, Class<T> clazz, JAXBContext ctx) throws Exception {
-        String xml = sanitize(rawXml);
-        Document doc = parseNsAware(xml);
-        Element payload = getFirstBodyChild(doc);
-        if (payload == null) return null;
-
-        String ln = payload.getLocalName();
-        String ns = payload.getNamespaceURI();
-        LOG.info("[SOAP DEBUG] payload localName= {}  ns= {}", ln, ns);
-
-        // fallback seguro si ctx es null
-        if (ctx == null) {
-            try {
-                ctx = JAXBContext.newInstance(clazz);  // contexto mínimo solo con la clase solicitada
-            } catch (JAXBException e) {
-                throw new RuntimeException("No se pudo crear JAXBContext dinámico para " + clazz.getName(), e);
-            }
-        }
-
-        Unmarshaller um = ctx.createUnmarshaller();
-
-        try {
-            @SuppressWarnings("unchecked")
-            JAXBElement<T> j = um.unmarshal(new DOMSource(payload), clazz);
-            return j.getValue();
-        } catch (UnmarshalException ignoreIfNoRoot) {
-            Object obj = um.unmarshal(new DOMSource(payload));
-            if (clazz.isInstance(obj)) return clazz.cast(obj);
-            if (obj instanceof JAXBElement) {
-                Object v = ((JAXBElement<?>) obj).getValue();
-                if (clazz.isInstance(v)) return clazz.cast(v);
-            }
-            return null;
-        }
-    }
 
 
     public String base64ToStringConversion(String bytes) {
@@ -408,5 +437,174 @@ public class SoapRequestUtils {
         }
         return PACKAGE_CTX;
     }
+
+    public Decision decide(String operationLocalPart,
+                           ClsLlaveExpediente llave,
+                           ChronoLocalDate corteHistorico) {
+        LOG.info("operationLocalPart: {}", operationLocalPart);
+        LOG.info("llave: {}", llave);
+
+        if (llave == null || llave.getCampos() == null) {
+            return Decision.LEGACY;
+        }
+
+        // ObtenLogin -> como lo tienes hoy
+        if ("ObtenLogin".equals(operationLocalPart)) {
+            return Decision.LEGACY;
+        }
+
+        if ("ContestaExpedientexLlave".equals(operationLocalPart)) {
+            LlaveMetadataDto llaveData = extraerLlaveMetadata(llave);
+            Integer month = llaveData != null ? llaveData.getMonth() : null;   // 1..12
+            Integer year = llaveData != null ? llaveData.getYear() : null;   // 4 dígitos
+            LOG.info("periodo: month={}, year={}", month, year);
+
+            // si no hay periodo, tratamos como histórico
+            if (month == null || year == null) {
+                LOG.info("periodo nulo: month={}, year={}", month, year);
+                return Decision.LEGACY;
+            }
+            if (month < 1 || month > 12) {
+                LOG.info("periodo invalido: month={}, year={}", month, year);
+                return Decision.LEGACY;
+            }
+
+            // Periodo de la llave como YearMonth
+            YearMonth periodoYM;
+            try {
+                periodoYM = YearMonth.of(year, month);
+            } catch (RuntimeException ex) { // por si llega año inválido
+                LOG.warn("Periodo inválido en llave: y={}, m={}. {}", year, month, ex.toString());
+                return Decision.LEGACY;
+            }
+
+            // Fecha de corte -> YearMonth (si es nula, forzamos legacy por seguridad)
+            if (corteHistorico == null) {
+                LOG.warn("corteHistorico es null -> LEGACY");
+                return Decision.LEGACY;
+            }
+            LocalDate corteLD;
+            try {
+                corteLD = LocalDate.from(corteHistorico);
+            } catch (RuntimeException ex) {
+                LOG.warn("No se pudo convertir corteHistorico a LocalDate: {} -> LEGACY", ex.toString());
+                return Decision.LEGACY;
+            }
+            YearMonth corteYM = YearMonth.of(corteLD.getYear(), corteLD.getMonth());
+
+            // si periodo < corte -> LEGACY, si periodo >= corte -> MODERN
+            boolean moderno = !periodoYM.isBefore(corteYM);
+            LOG.info("Comparación YearMonth - periodo={} corte={} => {}", periodoYM, corteYM,
+                    moderno ? "MODERN" : "LEGACY");
+            return moderno ? Decision.MODERN : Decision.LEGACY;
+        }
+
+        LOG.info("Otra Operacion -> LEGACY");
+        return Decision.LEGACY;
+    }
+
+    /**
+     * Extrae la fecha de periodo (tipo LocalDate) de la llave del expediente.
+     * la llave comienza con mes (1 o 2 dígitos) seguido por año (4 dígitos).
+     * Si no puede parsearse, devuelve null.
+     */
+    public LlaveMetadataDto extraerLlaveMetadata(ClsLlaveExpediente llave) {
+        if (llave == null || llave.getCampos() == null) return null;
+
+        LOG.info("llave: {}", llave);
+        int idx = 0;
+        for (ClsLlaveCampo campo : llave.getCampos()) {
+            LOG.info("campo[{}]: {}", idx++, campo);
+            if (campo == null) continue;
+
+            String nombre = campo.getCampo();
+            String valor = campo.getValor();
+
+            LOG.info("campo.nombre='{}' campo.valor='{}'", nombre, valor);
+
+            // Según tu XML actual el campo de interés es "Llave"
+            if (nombre != null && "Llave".equalsIgnoreCase(nombre.trim())) {
+                if (valor == null || valor.trim().isEmpty()) {
+                    LOG.warn("Campo 'Llave' presente pero vacío");
+                    return null;
+                }
+                try {
+                    LlaveMetadataDto metadata = parseLlaveFlexible(valor.trim());
+                    LOG.info("Llave parseada correctamente -> periodo={}, negocio={}, contrato={}",
+                            metadata.getMonth() +""+ metadata.getYear(), metadata.getNegocio(), metadata.getContrato());
+                    return metadata;
+                } catch (Exception e) {
+                    LOG.error("extraerLlaveMetadata excepcion: {}______{}", e.getMessage(), e);
+                    return null;
+                }
+            }
+        }
+        LOG.error("No se encontró campo 'Llave' en la llave del expediente");
+        return null;
+    }
+
+    private static LlaveMetadataDto parseLlaveFlexible(String llave) {
+        Objects.requireNonNull(llave, "llave requerida");
+        String digits = llave.replaceAll("\\D", "");
+        if (digits.length() < 8) {
+            throw new IllegalArgumentException("Llave inválida o muy corta: " + llave);
+        }
+
+        if (digits.length() >= 8) {
+            try {
+                int mes2 = Integer.parseInt(digits.substring(0, 2));
+                int anio4 = Integer.parseInt(digits.substring(2, 6));
+                if (isValidMonth(mes2) && isValidYear(anio4)) {
+                    String negocio = sub(digits, 6, 8);
+                    String contrato = sub(digits, 8, digits.length());
+                    if (!negocio.isEmpty() && !contrato.isEmpty()) {
+                        return new LlaveMetadataDto(anio4, mes2, negocio, contrato);
+                    }
+                }
+            } catch (Exception ignored) {
+                // continuar con el siguiente intento
+            }
+        }
+
+        try {
+            int mes1 = Integer.parseInt(digits.substring(0, 1));
+            int anio4 = Integer.parseInt(digits.substring(1, 5));
+            if (!isValidMonth(mes1) || !isValidYear(anio4)) {
+                throw new IllegalArgumentException("Mes/Año fuera de rango en llave: " + llave);
+            }
+            String negocio = sub(digits, 5, 7);
+            String contrato = sub(digits, 7, digits.length());
+            if (negocio.isEmpty() || contrato.isEmpty()) {
+                throw new IllegalArgumentException("Negocio/Contrato incompletos en llave: " + llave);
+            }
+            return new LlaveMetadataDto(anio4, mes1, negocio, contrato);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("No se pudo parsear la llave: " + llave, ex);
+        }
+    }
+
+    private static String sub(String value, int start, int end) {
+        if (value == null) {
+            return "";
+        }
+        if (start >= value.length()) {
+            return "";
+        }
+        int safeEnd = Math.min(value.length(), Math.max(start, end));
+        if (safeEnd <= start) {
+            return "";
+        }
+        return value.substring(start, safeEnd);
+    }
+
+    private static boolean isValidMonth(int month) {
+        return month >= 1 && month <= 12;
+    }
+
+    private static boolean isValidYear(int year) {
+        return year >= 1900 && year <= 2100;
+    }
+
+
 
 }

@@ -1,13 +1,8 @@
 package mx.com.actinver.orquestador.ws.endpoint;
 
-import mx.com.actinver.conf.DynamicString;
-import mx.com.actinver.orquestador.util.DynamicProperty;
-import mx.com.actinver.orquestador.ws.Decision;
 import mx.com.actinver.orquestador.ws.generated.ClsLlaveExpediente;
 import mx.com.actinver.orquestador.ws.generated.ContestaExpedientexLlaveRequest;
-import mx.com.actinver.orquestador.ws.proxy.PassthroughSoapClient;
 import mx.com.actinver.orquestador.ws.service.WsImagenesService;
-import mx.com.actinver.orquestador.ws.util.BypassRouter;
 import mx.com.actinver.orquestador.ws.util.SoapRequestUtils;
 import mx.com.actinver.orquestador.ws.util.SoapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -19,16 +14,7 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
 import javax.xml.bind.JAXBContext;
-import javax.xml.transform.stream.StreamSource;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.chrono.ChronoLocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 
 /**
  * Controller para enrutar requests SOAP (bypass vs modern).

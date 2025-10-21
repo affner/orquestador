@@ -1,6 +1,7 @@
 package mx.com.actinver.orquestador.ws.service.impl;
 
 import mx.com.actinver.conf.DynamicString;
+import mx.com.actinver.orquestador.dto.LlaveMetadataDto;
 import mx.com.actinver.orquestador.util.DynamicProperty;
 import mx.com.actinver.orquestador.ws.Decision;
 import mx.com.actinver.orquestador.ws.endpoint.RawSoapHolder;
@@ -11,7 +12,6 @@ import mx.com.actinver.orquestador.ws.usuarios.IDTicket;
 import mx.com.actinver.orquestador.ws.usuarios.ObtenLoginResponse;
 import mx.com.actinver.orquestador.ws.usuarios.RRespuesta;
 import mx.com.actinver.orquestador.ws.usuarios.Respuesta;
-import mx.com.actinver.orquestador.ws.util.BypassRouter;
 import mx.com.actinver.orquestador.ws.util.SoapRequestUtils;
 import mx.com.actinver.orquestador.ws.util.WsImagenesPrefixMapper;
 import org.apache.logging.log4j.LogManager;
@@ -24,12 +24,12 @@ import org.springframework.stereotype.Service;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.Marshaller;
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.transform.stream.StreamSource;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
-import javax.xml.datatype.DatatypeFactory;
-import javax.xml.datatype.XMLGregorianCalendar;
 import java.time.chrono.ChronoLocalDate;
 import java.util.GregorianCalendar;
 
@@ -40,8 +40,6 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 
     private PassthroughSoapClient client;
 
-    @Autowired
-    private BypassRouter router;
     @Autowired
     private SoapRequestUtils soapRequestUtils;
 
@@ -65,7 +63,8 @@ public class WsImagenesServiceImpl implements WsImagenesService {
                 XMLGregorianCalendar x = DatatypeFactory.newInstance()
                         .newXMLGregorianCalendar(new GregorianCalendar());
                 t.setFechaExpiracion(x);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             respuestaHolder.setRespuestaID("0");
             respuestaHolder.setCategoria("4000");
             respuestaHolder.setDescripcionRespuesta("OK");
@@ -81,14 +80,19 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 
     private ArrayOfClsFileHSM contestaExpedientexLlave(IDTicket ticket, ClsLlaveExpediente llave, short proyID, short expedienteID, int tipoDocID, Respuesta respuestaHolder) {
         ArrayOfClsFileHSM arr = new ArrayOfClsFileHSM();
+
+        LlaveMetadataDto metadata = soapRequestUtils.extraerLlaveMetadata(llave);
+        LOG.info("metadata: {}", metadata);
+
         ClsFileHSM f = new ClsFileHSM();
         f.setDocID(1L);
         f.setDescripcion("Documento demo");
         f.setTipoDocID(tipoDocID);
         f.setConsecutivo(1);
         f.setExt(".PDF");
-        f.setArrayFile(new byte[]{1,2,3});
+        f.setArrayFile(new byte[]{1, 2, 3});
         arr.getClsFileHSM().add(f);
+
 
         respuestaHolder.setRespuestaID("0");
         respuestaHolder.setCategoria("4000");
@@ -101,7 +105,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
         ClsFileHSM f = new ClsFileHSM();
         f.setDocID(docID);
         f.setDescripcion("Contenido binario demo");
-        f.setArrayFile(new byte[]{0,1,2,3});
+        f.setArrayFile(new byte[]{0, 1, 2, 3});
         respuestaHolder.setRespuestaID("0");
         respuestaHolder.setCategoria("4000");
         respuestaHolder.setDescripcionRespuesta("OK");
@@ -139,7 +143,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
         m.marshal(resp, sw);
 
         String xml = sw.toString();
-        LOG.debug("[Service] ObtenLogin response XML (len={}): {}", xml.length(), xml.length() > 2000 ? xml.substring(0,2000) + "...(truncated)" : xml);
+        LOG.debug("[Service] ObtenLogin response XML (len={}): {}", xml.length(), xml.length() > 2000 ? xml.substring(0, 2000) + "...(truncated)" : xml);
 
         return new StreamSource(new StringReader(xml));
     }
@@ -160,21 +164,23 @@ public class WsImagenesServiceImpl implements WsImagenesService {
             LOG.error("Error unmarshalling ContestaExpedientexLlaveRequest", e);
         }
         LOG.info("migrationCutoverDate: {}", migrationCutoverDate);
-        ChronoLocalDate corteHistorico =  soapRequestUtils.parseCutoverDateOrDefault(migrationCutoverDate);
+        ChronoLocalDate corteHistorico = soapRequestUtils.parseCutoverDateOrDefault(migrationCutoverDate);
         LOG.info("corteHistorico: {}", corteHistorico);
 
-        decision = router.decide(op, llaveExp, corteHistorico);
+        decision = soapRequestUtils.decide(op, llaveExp, corteHistorico);
 
         this.client = new PassthroughSoapClient(idPortalUrl.toString());
         LOG.info("decision: {}", decision);
         // Ejecutar según la decisión
         if (decision == Decision.MODERN) {
+
             LOG.info("peticion a Interna: ");
             // Procesamiento interno (consulta moderna)
             LOG.info("procesarInternamente: {}", op);
+
             ContestaExpedientexLlaveRequest req = ContestaExpedientexLlaveRequest.builder(rawXml).build();
             StreamSource streamSource = contestaExpedientexLlaveResponse(req);
-            String respuestaXml =  soapRequestUtils.streamSourceToString(streamSource);
+            String respuestaXml = soapRequestUtils.streamSourceToString(streamSource);
             LOG.info("Respuesta interna generada para {}: {}", op, respuestaXml);
             return ResponseEntity.ok().contentType(MediaType.TEXT_XML).body(respuestaXml);
 
@@ -280,7 +286,6 @@ public class WsImagenesServiceImpl implements WsImagenesService {
                 "</soap:Body>" +
                 "</soap:Envelope>";
     }
-
 
 
 }
