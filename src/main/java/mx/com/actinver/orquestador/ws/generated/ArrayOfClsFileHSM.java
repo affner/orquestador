@@ -6,6 +6,7 @@ import java.util.List;
 
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "ArrayOfClsFileHSM", propOrder = { "clsFileHSM" })
+@XmlRootElement(name = "ArrayOfClsFileHSM")
 public class ArrayOfClsFileHSM {
 
     @XmlElement(name = "clsFileHSM", nillable = true)
