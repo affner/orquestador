@@ -2,6 +2,8 @@ package mx.com.actinver.orquestador.ws.endpoint;
 
 import mx.com.actinver.orquestador.ws.generated.*;
 import mx.com.actinver.orquestador.ws.service.WsImagenesService;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.ws.server.endpoint.annotation.Endpoint;
@@ -14,6 +16,7 @@ import javax.xml.transform.stream.StreamSource;
 @Endpoint
 @Component
 public class WsImagenesEndpoint {
+    private static final Logger LOG = LogManager.getLogger(SoapBypassEndpoint.class);
 
     public static final String NAMESPACE = "http://Digipro.servicios/WsImagenes/WsImagenes";
 
@@ -32,6 +35,8 @@ public class WsImagenesEndpoint {
     @PayloadRoot(namespace = NAMESPACE, localPart = "ContestaExpedientexLlave")
     @ResponsePayload
     public StreamSource contestaExpedientexLlave(@RequestPayload ContestaExpedientexLlaveRequest req) throws Exception {
+        LOG.info("contestaExpedientexLlave: {}", req);
+
         return imagenesService.contestaExpedientexLlaveResponse(req);
     }
 
