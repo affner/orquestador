@@ -1,8 +1,11 @@
 package mx.com.actinver.orquestador.ws.service.impl;
 
 import mx.com.actinver.conf.DynamicString;
+import mx.com.actinver.orquestador.dto.DescargaCfdiRequestDto;
+import mx.com.actinver.orquestador.dto.DescargaCfdiResponseDto;
 import mx.com.actinver.orquestador.dto.LlaveMetadataDto;
 import mx.com.actinver.orquestador.util.DynamicProperty;
+import mx.com.actinver.orquestador.util.RestClient;
 import mx.com.actinver.orquestador.ws.Decision;
 import mx.com.actinver.orquestador.ws.endpoint.RawSoapHolder;
 import mx.com.actinver.orquestador.ws.generated.*;
@@ -17,10 +20,13 @@ import mx.com.actinver.orquestador.ws.util.WsImagenesPrefixMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.Marshaller;
@@ -30,12 +36,17 @@ import javax.xml.transform.stream.StreamSource;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.time.LocalDateTime;
 import java.time.chrono.ChronoLocalDate;
-import java.util.GregorianCalendar;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Service
 public class WsImagenesServiceImpl implements WsImagenesService {
     private static final Logger LOG = LogManager.getLogger(WsImagenesServiceImpl.class);
+    private static final Locale MX_LOCALE = new Locale("es", "MX");
+    private static final DateTimeFormatter DIGITALIZATION_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy hh:mm:ss a", MX_LOCALE);
 
 
     private PassthroughSoapClient client;
@@ -43,11 +54,23 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     @Autowired
     private SoapRequestUtils soapRequestUtils;
 
+    @Autowired
+    private RestClient restClient;
+
     @DynamicProperty("${id-portal.url}")
     private DynamicString idPortalUrl;
 
     @DynamicProperty("${migration.start.date}")
     private DynamicString migrationCutoverDate;
+
+    @DynamicProperty("${api-stamp.url}")
+    private DynamicString descargaCfdiServiceUrl;
+
+    @DynamicProperty("${api-stamp.user}")
+    private DynamicString apiStampUserName;
+
+    @DynamicProperty("${api-stamp.password}")
+    private DynamicString apiStampPassword;
 
     // ----------------- implementación existente (dominio) -----------------
 
@@ -81,25 +104,204 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     private ArrayOfClsFileHSM contestaExpedientexLlave(IDTicket ticket, ClsLlaveExpediente llave, short proyID, short expedienteID, int tipoDocID, Respuesta respuestaHolder) {
         ArrayOfClsFileHSM arr = new ArrayOfClsFileHSM();
 
-        LlaveMetadataDto metadata = soapRequestUtils.extraerLlaveMetadata(llave);
-        LOG.info("metadata: {}", metadata);
+        LlaveMetadataDto metadata = soapRequestUtils.extraerLlaveMetadata(llave, tipoDocID);
+//        Integer tipoDato = soapRequestUtils.extraerTipoDato(llave);
+        LOG.info("metadata: {} tipoDocID: {}", metadata, tipoDocID);
 
-        ClsFileHSM f = new ClsFileHSM();
-        f.setDocID(1L);
-        f.setDescripcion("Documento demo");
-        f.setTipoDocID(tipoDocID);
-        f.setConsecutivo(1);
-        f.setExt(".PDF");
-        f.setArrayFile(new byte[]{1, 2, 3});
-        arr.getClsFileHSM().add(f);
+        if (metadata == null) {
+            respuestaHolder.setRespuestaID("1");
+            respuestaHolder.setCategoria("4000");
+            respuestaHolder.setDescripcionRespuesta("No se pudo interpretar la llave del expediente");
+            return arr;
+        }
 
+        List<FileVariant> variants = determineVariants(tipoDocID);
+        LOG.info("Variants a solicitar: {}", variants);
 
-        respuestaHolder.setRespuestaID("0");
-        respuestaHolder.setCategoria("4000");
-        respuestaHolder.setDescripcionRespuesta("Expediente obtenido correctamente");
+        int consecutivo = 1;
+        for (FileVariant variant : variants) {
+            DescargaCfdiResponseDto fileResponse = invokeDescargaCfdi(metadata, variant.getFileType());
+            if (fileResponse == null || fileResponse.getFileData() == null || fileResponse.getFileData().length == 0) {
+                LOG.warn("Respuesta vacía del servicio descargaCfdi para tipo {}", variant.getFileType());
+                continue;
+            }
+            ClsFileHSM file = toClsFileHsm(fileResponse, variant, consecutivo++);
+            arr.getClsFileHSM().add(file);
+        }
+
+        if (arr.getClsFileHSM().isEmpty()) {
+            respuestaHolder.setRespuestaID("0");
+            respuestaHolder.setCategoria("4000");
+            respuestaHolder.setDescripcionRespuesta("No se encontraron documentos para la llave especificada");
+        } else {
+            respuestaHolder.setRespuestaID("0");
+            respuestaHolder.setCategoria("4000");
+            respuestaHolder.setDescripcionRespuesta("Expediente obtenido correctamente");
+        }
         return arr;
     }
 
+    private List<FileVariant> determineVariants(int tipoDocID) {
+        List<FileVariant> variants = new ArrayList<>();
+
+
+        if (tipoDocID == 0) {
+            variants.add(FileVariant.PDF);
+            variants.add(FileVariant.XML);
+        } else if (tipoDocID == 1) {
+            variants.add(FileVariant.PDF);
+        } else if (tipoDocID == 2) {
+            variants.add(FileVariant.XML);
+        } else if (tipoDocID == 3) {
+            variants.add(FileVariant.PDF);
+        }
+        return variants;
+    }
+
+    private DescargaCfdiResponseDto invokeDescargaCfdi(LlaveMetadataDto metadata, String fileType) {
+
+
+        DescargaCfdiRequestDto requestDto = buildDescargaCfdiRequest(metadata, fileType);
+        if (requestDto == null) {
+            LOG.warn("No se pudo construir la petición para descargaCfdi (metadata incompleta)");
+            return null;
+        }
+
+        Map<String, Object> params = buildQueryParams(requestDto);
+        Long executor = 4L;  // hardcode temporal a un canal digital fijo
+        if (executor != null) {
+            params.put("executor", executor);
+        }
+
+        try {
+            String token = restClient.getAccessToken(descargaCfdiServiceUrl + "/oauth/token", apiStampUserName.toString(), apiStampPassword.toString());
+
+            DescargaCfdiResponseDto response = restClient.executeExternalServiceRest(
+                    descargaCfdiServiceUrl + "/api/descargaCfdi",
+                    HttpMethod.GET,
+                    params,
+                    new ParameterizedTypeReference<DescargaCfdiResponseDto>() {
+                    },
+                    token
+            );
+
+            return response;
+        } catch (Exception e) {
+            LOG.error("Error invocando descargaCfdi con fileType={}", fileType, e);
+            return null;
+        }
+    }
+
+
+    private DescargaCfdiRequestDto buildDescargaCfdiRequest(LlaveMetadataDto metadata, String fileType) {
+        if (metadata == null) {
+            return null;
+        }
+        return DescargaCfdiRequestDto.builder()
+                .contractId(StringUtils.hasText(metadata.getContrato()) ? metadata.getContrato() : null)
+                .businessId(StringUtils.hasText(metadata.getNegocio()) ? metadata.getNegocio() : null)
+                .year(metadata.getYear() != null ? metadata.getYear().toString() : null)
+                .month(metadata.getMonth() != null ? String.format("%02d", metadata.getMonth()) : null)
+                .fileType(StringUtils.hasText(fileType) ? fileType.toUpperCase(Locale.ROOT) : null)
+                .build();
+    }
+
+    private Map<String, Object> buildQueryParams(DescargaCfdiRequestDto requestDto) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        if (StringUtils.hasText(requestDto.getContractId())) {
+            params.put("contractId", requestDto.getContractId());
+        }
+        if (StringUtils.hasText(requestDto.getYear())) {
+            params.put("year", requestDto.getYear());
+        }
+        if (StringUtils.hasText(requestDto.getMonth())) {
+            params.put("month", requestDto.getMonth());
+        }
+        if (StringUtils.hasText(requestDto.getBusinessId())) {
+            params.put("businessId", requestDto.getBusinessId());
+        }
+        if (StringUtils.hasText(requestDto.getValidityId())) {
+            params.put("validityId", requestDto.getValidityId());
+        }
+        if (StringUtils.hasText(requestDto.getFileType())) {
+            params.put("fileType", requestDto.getFileType());
+        }
+        if (StringUtils.hasText(requestDto.getCredit())) {
+            params.put("credit", requestDto.getCredit());
+        }
+        return params;
+    }
+
+
+    private ClsFileHSM toClsFileHsm(DescargaCfdiResponseDto response, FileVariant variant, int consecutivo) {
+        ClsFileHSM file = new ClsFileHSM();
+        file.setDocID((long) consecutivo);
+        file.setDocPID(0L);
+        file.setTipoDocID(variant.getTipoDocId());
+        file.setTipoDocIdGrupo(0L);
+        file.setDescripcion(determineDescripcion(response, variant));
+        file.setConsecutivo(consecutivo);
+        file.setSeparador(Boolean.FALSE);
+        file.setExt(variant.getExtension());
+        file.setFechaDigitalizacion(formatDigitalizationDate());
+        file.setArrayFile(response.getFileData());
+        file.setCreatedBy(0L);
+        return file;
+    }
+
+    private String determineDescripcion(DescargaCfdiResponseDto response, FileVariant variant) {
+        if (response != null && StringUtils.hasText(response.getFileName())) {
+            return response.getFileName();
+        }
+        return variant.getDefaultDescription();
+    }
+
+    private String formatDigitalizationDate() {
+        String formatted = LocalDateTime.now().format(DIGITALIZATION_DATE_FORMATTER);
+        return formatted.replace('\u00A0', ' ');
+    }
+
+    private static final class FileVariant {
+        private static final FileVariant PDF = new FileVariant("PDF", ".PDF", 1, "Presentación PDF(Documento Principal)");
+        private static final FileVariant XML = new FileVariant("XML", ".XML", 2, "Presentación XML(Documento Principal)");
+
+        private final String fileType;
+        private final String extension;
+        private final int tipoDocId;
+        private final String defaultDescription;
+
+        private FileVariant(String fileType, String extension, int tipoDocId, String defaultDescription) {
+            this.fileType = fileType;
+            this.extension = extension;
+            this.tipoDocId = tipoDocId;
+            this.defaultDescription = defaultDescription;
+        }
+
+        public String getFileType() {
+            return fileType;
+        }
+
+        public String getExtension() {
+            return extension;
+        }
+
+        public int getTipoDocId() {
+            return tipoDocId;
+        }
+
+        public String getDefaultDescription() {
+            return defaultDescription;
+        }
+
+        @Override
+        public String toString() {
+            return "FileVariant{" +
+                    "fileType='" + fileType + '\'' +
+                    ", extension='" + extension + '\'' +
+                    ", tipoDocId=" + tipoDocId +
+                    '}';
+        }
+    }
 
     private ClsFileHSM contestaFileHSM(long docID, int proyID, long expedienteID, IDTicket ticket, Respuesta respuestaHolder) {
         ClsFileHSM f = new ClsFileHSM();
@@ -196,26 +398,27 @@ public class WsImagenesServiceImpl implements WsImagenesService {
                 req.getProyID(), req.getExpedienteID(), req.getTipoDocID());
         LOG.debug("[Service] Raw SOAP len={}", RawSoapHolder.get() != null ? RawSoapHolder.get().length() : 0);
 
+
         Respuesta r = new Respuesta();
         ArrayOfClsFileHSM arr = contestaExpedientexLlave(req.getTicket(), req.getLlave(),
                 req.getProyID().shortValue(), req.getExpedienteID().shortValue(), req.getTipoDocID(), r);
 
-        StringWriter sw = new StringWriter();
-        JAXBContext jc = JAXBContext.newInstance(ArrayOfClsFileHSM.class, Respuesta.class);
+        ContestaExpedientexLlaveResponse response = new ContestaExpedientexLlaveResponse();
+        response.setContestaExpedientexLlaveResult(arr);
+        response.setTicket(req.getTicket());
+        response.setRRespuesta(r);
+
+        JAXBContext jc = JAXBContext.newInstance(ContestaExpedientexLlaveResponse.class);
         Marshaller m = jc.createMarshaller();
         m.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.FALSE);
         m.setProperty("com.sun.xml.bind.namespacePrefixMapper", new WsImagenesPrefixMapper());
 
-        sw.append("<ContestaExpedientexLlaveResponse xmlns=\"http://Digipro.servicios/WsImagenes/WsImagenes\">");
-        StringWriter aW = new StringWriter();
-        m.marshal(arr, aW);
-        sw.append(aW.toString());
-        StringWriter rW = new StringWriter();
-        m.marshal(r, rW);
-        sw.append(rW.toString());
-        sw.append("</ContestaExpedientexLlaveResponse>");
+        StringWriter sw = new StringWriter();
+        m.marshal(response, sw);
 
         String responseXml = sw.toString();
+
+
         LOG.info("[Service] ContestaExpedientexLlave response (truncated 2000):\n{}",
                 (responseXml.length() > 2000 ? responseXml.substring(0, 2000) + "...(truncated)" : responseXml));
         LOG.info("[Service] ContestaExpedientexLlave finished - items={}", arr != null ? arr.getClsFileHSM().size() : 0);
@@ -231,22 +434,22 @@ public class WsImagenesServiceImpl implements WsImagenesService {
         Respuesta r = new Respuesta();
         ClsFileHSM f = contestaFileHSM(req.getDocID(), req.getProyID(), req.getDocIDPadreExp(), req.getTicket(), r);
 
-        StringWriter sw = new StringWriter();
-        JAXBContext jc = JAXBContext.newInstance(ClsFileHSM.class, Respuesta.class);
+        ContestaFileHSMResponse response = new ContestaFileHSMResponse();
+        response.setContestaFileHSMResult(f);
+        response.setTicket(req.getTicket());
+        response.setRRespuesta(r);
+
+        JAXBContext jc = JAXBContext.newInstance(ContestaFileHSMResponse.class);
         Marshaller m = jc.createMarshaller();
         m.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.FALSE);
         m.setProperty("com.sun.xml.bind.namespacePrefixMapper", new WsImagenesPrefixMapper());
 
-        sw.append("<ContestaFileHSMResponse xmlns=\"http://Digipro.servicios/WsImagenes/WsImagenes\">");
-        StringWriter fW = new StringWriter();
-        m.marshal(f, fW);
-        sw.append(fW.toString());
-        StringWriter rW = new StringWriter();
-        m.marshal(r, rW);
-        sw.append(rW.toString());
-        sw.append("</ContestaFileHSMResponse>");
+        StringWriter sw = new StringWriter();
+        m.marshal(response, sw);
 
         String responseXml = sw.toString();
+
+
         LOG.info("[Service] ContestaFileHSM response (truncated 2000):\n{}",
                 (responseXml.length() > 2000 ? responseXml.substring(0, 2000) + "...(truncated)" : responseXml));
         LOG.info("[Service] ContestaFileHSM finished - returnedDocID={}", f != null ? f.getDocID() : null);

@@ -8,6 +8,7 @@ import mx.com.actinver.orquestador.ws.generated.ClsLlaveCampo;
 import mx.com.actinver.orquestador.ws.generated.ClsLlaveExpediente;
 import org.apache.commons.codec.binary.Base64;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -502,12 +503,6 @@ public class SoapRequestUtils {
         LOG.info("Otra Operacion -> LEGACY");
         return Decision.LEGACY;
     }
-
-    /**
-     * Extrae la fecha de periodo (tipo LocalDate) de la llave del expediente.
-     * la llave comienza con mes (1 o 2 dígitos) seguido por año (4 dígitos).
-     * Si no puede parsearse, devuelve null.
-     */
     public LlaveMetadataDto extraerLlaveMetadata(ClsLlaveExpediente llave) {
         if (llave == null || llave.getCampos() == null) return null;
 
@@ -539,10 +534,11 @@ public class SoapRequestUtils {
                 }
             }
         }
+
+
         LOG.error("No se encontró campo 'Llave' en la llave del expediente");
         return null;
     }
-
     private static LlaveMetadataDto parseLlaveFlexible(String llave) {
         Objects.requireNonNull(llave, "llave requerida");
         String digits = llave.replaceAll("\\D", "");
@@ -558,7 +554,8 @@ public class SoapRequestUtils {
                     String negocio = sub(digits, 6, 8);
                     String contrato = sub(digits, 8, digits.length());
                     if (!negocio.isEmpty() && !contrato.isEmpty()) {
-                        return new LlaveMetadataDto(anio4, mes2, negocio, contrato);
+
+                        return new LlaveMetadataDto(anio4, mes2, contrato, contrato);
                     }
                 }
             } catch (Exception ignored) {
@@ -582,6 +579,155 @@ public class SoapRequestUtils {
             throw new IllegalArgumentException("No se pudo parsear la llave: " + llave, ex);
         }
     }
+
+    /**
+     * Extrae la fecha de periodo (tipo LocalDate) de la llave del expediente.
+     * la llave comienza con mes (1 o 2 dígitos) seguido por año (4 dígitos).
+     * Si no puede parsearse, devuelve null.
+     */
+    public LlaveMetadataDto extraerLlaveMetadata(ClsLlaveExpediente llave, int tipoDocID) {
+        if (llave == null || llave.getCampos() == null) return null;
+
+        LOG.info("llave: {}", llave);
+        int idx = 0;
+        for (ClsLlaveCampo campo : llave.getCampos()) {
+            LOG.info("campo[{}]: {}", idx++, campo);
+            if (campo == null) continue;
+
+            String nombre = campo.getCampo();
+            String valor = campo.getValor();
+
+            LOG.info("campo.nombre='{}' campo.valor='{}'", nombre, valor);
+
+            // Según tu XML actual el campo de interés es "Llave"
+            if (nombre != null && "Llave".equalsIgnoreCase(nombre.trim())) {
+                if (valor == null || valor.trim().isEmpty()) {
+                    LOG.warn("Campo 'Llave' presente pero vacío");
+                    return null;
+                }
+                try {
+                    LlaveMetadataDto metadata = parseLlaveFlexible(valor.trim(), tipoDocID);
+                    LOG.info("Llave parseada correctamente -> periodo={}, negocio={}, contrato={}",
+                            metadata.getMonth() +""+ metadata.getYear(), metadata.getNegocio(), metadata.getContrato());
+                    return metadata;
+                } catch (Exception e) {
+                    LOG.error("extraerLlaveMetadata excepcion: {}______{}", e.getMessage(), e);
+                    return null;
+                }
+            }
+        }
+
+
+        LOG.error("No se encontró campo 'Llave' en la llave del expediente");
+        return null;
+    }
+
+    public Integer extraerTipoDato(ClsLlaveExpediente llave) {
+        if (llave == null || llave.getCampos() == null) {
+            return null;
+        }
+
+        Integer fallback = null;
+
+        for (ClsLlaveCampo campo : llave.getCampos()) {
+            if (campo == null) {
+                continue;
+            }
+
+            String campoNombre = campo.getCampo();
+            String tipoDato = campo.getTipoDato();
+
+            if (StringUtils.hasText(tipoDato)) {
+                try {
+                    Integer parsed = Integer.valueOf(tipoDato.trim());
+                    if (StringUtils.hasText(campoNombre) && "Llave".equalsIgnoreCase(campoNombre.trim())) {
+                        return parsed;
+                    }
+                    if (fallback == null) {
+                        fallback = parsed;
+                    }
+                } catch (NumberFormatException ex) {
+                    LOG.debug("TipoDato no numérico en campo {}: {}", campoNombre, tipoDato);
+                }
+            }
+
+            if (StringUtils.hasText(campoNombre) && "TipoDato".equalsIgnoreCase(campoNombre.trim())) {
+                String valor = campo.getValor();
+                if (StringUtils.hasText(valor)) {
+                    try {
+                        return Integer.valueOf(valor.trim());
+                    } catch (NumberFormatException ex) {
+                        LOG.debug("Valor de TipoDato no numérico: {}", valor);
+                    }
+                }
+            }
+        }
+
+        return fallback;
+    }
+
+    private static LlaveMetadataDto parseLlaveFlexible(String llave, int tipoDocID) {
+        Objects.requireNonNull(llave, "llave requerida");
+        String digits = llave.replaceAll("\\D", "");
+        if (digits.length() < 7) { // caso mínimo: MYYYY + negocio(2) + al menos 0 de contrato
+            throw new IllegalArgumentException("Llave inválida o muy corta: " + llave);
+        }
+
+        // Intento 1: MMYYYY...
+        int mLen = 0;
+        int mes, anio;
+        try {
+            int mm = Integer.parseInt(digits.substring(0, Math.min(2, digits.length())));
+            int yyyy = Integer.parseInt(digits.substring(2, Math.min(6, digits.length())));
+            if (isValidMonth(mm) && isValidYear(yyyy)) {
+                mes = mm; anio = yyyy; mLen = 2; // mes ocupa 2 dígitos
+            } else {
+                throw new NumberFormatException("no MMYYYY");
+            }
+        } catch (Exception ignore) {
+            // Intento 2: MYYYY...
+            if (digits.length() < 6) {
+                throw new IllegalArgumentException("Llave no contiene periodo válido (MYYYY/MMYYYY): " + llave);
+            }
+            int m = Integer.parseInt(digits.substring(0, 1));
+            int yyyy = Integer.parseInt(digits.substring(1, 5));
+            if (!isValidMonth(m) || !isValidYear(yyyy)) {
+                throw new IllegalArgumentException("Periodo inválido en llave: " + llave);
+            }
+            mes = m; anio = yyyy; mLen = 1; // mes ocupa 1 dígito
+        }
+
+        // Después del periodo viene negocio (2 dígitos) y luego contrato
+        int idxAfterPeriod = mLen + 4; // mes (1 o 2) + año (4)
+        if (digits.length() < idxAfterPeriod + 2) {
+            throw new IllegalArgumentException("Llave sin negocio de 2 dígitos: " + llave);
+        }
+        String negocioRaw = digits.substring(idxAfterPeriod, idxAfterPeriod + 2);
+        String contrato = (digits.length() > idxAfterPeriod + 2)
+                ? digits.substring(idxAfterPeriod + 2)
+                : "";
+
+        if (contrato.isEmpty()) {
+            throw new IllegalArgumentException("Llave sin contrato: " + llave);
+        }
+
+        // Regla de mapeo negocio
+        String negocioInt;
+        switch (negocioRaw) {
+            case "01": // banco… excepto tipoDocID == 3
+                negocioInt = (tipoDocID == 3) ? "31" : "10"; // 31=Crédito, 10=Banco
+                break;
+            case "02": // casa
+                negocioInt = "11";
+                break;
+            default:
+                throw new IllegalArgumentException("Negocio desconocido en llave: " + negocioRaw);
+        }
+
+
+        return new LlaveMetadataDto(anio, mes, negocioInt, contrato);
+    }
+
 
     private static String sub(String value, int start, int end) {
         if (value == null) {

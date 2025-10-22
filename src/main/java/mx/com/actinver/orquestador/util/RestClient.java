@@ -4,19 +4,23 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Setter;
 import mx.com.actinver.common.exception.ConsecutiveServerErrorLimitReachedException;
+import mx.com.actinver.orquestador.dto.DescargaCfdiResponseDto;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
-
+import org.springframework.web.util.UriComponentsBuilder;
 import javax.annotation.PostConstruct;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -84,6 +88,7 @@ public class RestClient {
         Objects.requireNonNull(action, "action must not be null");
         Exception lastException = null;
         //   LOG.info("-------------- Retry Method: ");
+        int maxConsecutiveErrors = errorRetry != null ? errorRetry : 3;
         for (int i = 0; i < maxRetries; i++) {
             try {
                 T result = action.call();
@@ -183,186 +188,37 @@ public class RestClient {
         }
         return false;
     }
-//
-//    public StampResponseDto callXsaStamp(String url, HttpMethod method, StampRequestDto request) throws Exception {
-//        try {
-//            HttpHeaders headers = new HttpHeaders();
-//            headers.set("Content-Type", "application/json");
-//            headers.set("Accept", "application/json");
-//
-//            String body = objectMapper.writeValueAsString(request);
-//            //    LOG.info("Enviando JSON: {}", body);
-//
-//            HttpEntity<String> entity = new HttpEntity<>(body, headers);
-//            // antes de la llamada
-//            long start = System.currentTimeMillis();
-//            ResponseEntity<String> response = retry(3, 2000, () ->
-//                    restTemplate.exchange(url, method, entity, String.class)
-//            );
-//            long elapsed = System.currentTimeMillis() - start;
-//            LOG.info("XSA responded in {} ms for folio {}", elapsed, request.getFolio());
-//
-//
-//            String json = response.getBody();
-//            //  LOG.info("Respuesta recibida: {} - Código: {}", json, response.getStatusCodeValue());
-//
-//            StampResponseDto dto = objectMapper.readValue(json, StampResponseDto.class);
-//            dto.setRequest(request);
-//            return dto;
-//
-//        } catch (HttpStatusCodeException e) {
-//            String responseBody = e.getResponseBodyAsString();
-//            LOG.debug("Error HTTP {}: {}", e.getStatusCode(), responseBody);
-//
-//            StampResponseDto error = new StampResponseDto();
-//            error.setRequest(request);
-//
-//            try {
-//                StampResponseDto parsed = objectMapper.readValue(responseBody, StampResponseDto.class);
-//                parsed.setRequest(request);
-//                return parsed;
-//            } catch (Exception innerParseEx) {
-//                List<String> fallbackErrors = new ArrayList<>();
-//                try {
-//                    Map<String, List<String>> simpleErrorMap = objectMapper.readValue(
-//                            responseBody, new TypeReference<Map<String, List<String>>>() {
-//                            });
-//                    List<String> errors = simpleErrorMap.get("errors");
-//                    if (errors != null && !errors.isEmpty()) {
-//                        error.setErrors(errors);
-//                        error.getErrors().add("Error 500 HTTP");
-//                    } else {
-//                        fallbackErrors.add("Error 500 HTTP " + e.getStatusCode() + ": " + responseBody);
-//                        error.setErrors(fallbackErrors);
-//                    }
-//                } catch (Exception fallbackEx) {
-//
-//                    fallbackErrors.add("Error 500 HTTP " + e.getStatusCode() + ": " + responseBody);
-//                    error.setErrors(fallbackErrors);
-//                }
-//                return error;
-//            }
-//
-//        } catch (ConsecutiveServerErrorLimitReachedException e) {
-//            throw e; // Propaga el error para que se detenga
-//        } catch (ResourceAccessException e) {
-//            LOG.error("I/O error en callXsaStamp: {}", e.getMessage(), e);
-//            StampResponseDto dto = new StampResponseDto();
-//            dto.setRequest(request);
-//            dto.setErrors(Collections.singletonList("I/O error: " + e.getMessage()));
-//            return dto;
-//        } catch (Exception e) {
-//            LOG.error("Error inesperado: {}", e.getMessage());
-//
-//            StampResponseDto error = new StampResponseDto();
-//            error.setRequest(request);
-//
-//            List<String> fallbackErrors = new ArrayList<>();
-//            String errorMessage = e.getMessage();
-//
-//            if (e instanceof HttpStatusCodeException) {
-//                HttpStatusCodeException httpEx = (HttpStatusCodeException) e;
-//                String responseBody = httpEx.getResponseBodyAsString();
-//                try {
-//                    Map<String, List<String>> errorMap = objectMapper.readValue(responseBody,
-//                            new TypeReference<Map<String, List<String>>>() {
-//                            });
-//                    List<String> errors = errorMap.get("errors");
-//                    if (errors != null && !errors.isEmpty()) {
-//                        error.setErrors(errors);
-//                        return error;
-//                    }
-//                } catch (Exception parseEx) {
-//                    LOG.warn("No se pudo parsear body en catch final: {}", parseEx.getMessage());
-//                    errorMessage = responseBody; // preferimos mostrar el body crudo
-//                }
-//            }
-//
-//            fallbackErrors.add("Error 525 missed path: " + errorMessage);
-//            error.setErrors(fallbackErrors);
-//            return error;
-//        }
-//
-//
-//    }
-//
-//    /**
-//     * Este método invoca el endpoint de cancelación (“/cfdis/cancelar”) y
-//     * parsea la respuesta en una lista de CancelationResultDto.
-//     *
-//     * @param url     URL completa del endpoint (ej. https://miXsaHost/.../cfdis/cancelar)
-//     * @param method  HttpMethod.POST
-//     * @param request Un CancelationXsaRequestDto (contiene motivo + lista de uuids)
-//     *
-//     * @return Lista de CancelationResultDto con el resultado para cada UUID.
-//     */
-//    public List<CancelationResultDto> callXsaCancelStamp(
-//            String url,
-//            HttpMethod method,
-//            mx.com.actinver.orquestador.dto.CancelationXsaRequestDto request
-//    ) throws Exception {
-//        try {
-//            HttpHeaders headers = new HttpHeaders();
-//            headers.set("Content-Type", "application/json");
-//            headers.set("Accept", "application/json");
-//
-//            // Convertimos el DTO a JSON:
-//            String body = objectMapper.writeValueAsString(request);
-//            HttpEntity<String> entity = new HttpEntity<>(body, headers);
-//            LOG.info("-------------- antes de peticion");
-//            // Reintentamos la llamada según la lógica de retry:
-//            ResponseEntity<String> response = retry(3, 2000, () ->
-//                    restTemplate.exchange(url, method, entity, String.class)
-//            );
-//            LOG.info("Response : {}", response);
-//            String json = response.getBody();
-//            // La API de cancelación regresa un array de objetos:
-//            // [ { "uuid":"...", "status":"202", "descripcion":"EN_PROCESO" }, ... ]
-//            return objectMapper.readValue(
-//                    json,
-//                    new TypeReference<List<CancelationResultDto>>() {
-//                    }
-//            );
-//
-//        } catch (HttpStatusCodeException e) {
-//            String responseBody = e.getResponseBodyAsString();
-//            HttpStatus statusCode = e.getStatusCode();
-//            LOG.error("Error HTTP {} en cancelación: {}", statusCode.value(), responseBody);
-//
-//            // Intentamos parsear como List<CancelationResultDto> si el servicio lo devolvió así:
-//            try {
-//                return objectMapper.readValue(
-//                        responseBody,
-//                        new TypeReference<List<CancelationResultDto>>() {
-//                        }
-//                );
-//            } catch (Exception parseEx) {
-//                LOG.error("-----parseEx: {}", parseEx.getMessage(), parseEx);
-//                // Si no se pudo parsear, armamos un fallback con un solo item de error:
-//                CancelationResultDto fallback = CancelationResultDto.builder()
-//                        .uuid("N/A")
-//                        .status(String.valueOf(statusCode.value()))
-//                        .descripcion("ERROR NO PARSEABLE: " + responseBody)
-//                        .build();
-//                return Collections.singletonList(fallback);
-//            }
-//
-//        } catch (ConsecutiveServerErrorLimitReachedException e) {
-//            LOG.error("-----e: {}", e.getMessage(), e);
-//            throw e; // Propagar para que el flujo principal lo capture
-//        } catch (IOException e) {
-//            LOG.error("IOException en cancelación: {}", e.getMessage());
-//            throw new RuntimeException(e);
-//        } catch (Exception e) {
-//            LOG.error("Error inesperado en cancelación: {}", e.getMessage(), e);
-//            CancelationResultDto fallback = CancelationResultDto.builder()
-//                    .uuid("N/A")
-//                    .status("500")
-//                    .descripcion("ERROR INESPERADO: " + e.getLocalizedMessage())
-//                    .build();
-//            return Collections.singletonList(fallback);
-//        }
-//    }
+
+    /**
+     * Obtiene un token para el login, enviando usuario y password en JSON.
+     */
+    public String getAccessToken(String authUrl, String username, String password) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON); // Enviar JSON
+
+        Map<String, String> body = new HashMap<>();
+        body.put("username", username);
+        body.put("password", password);
+
+        HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(body, headers);
+
+        try {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    authUrl,
+                    HttpMethod.POST,
+                    requestEntity,
+                    new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                return response.getBody().get("token").toString();
+            } else {
+                throw new RuntimeException("Error al obtener el token: " + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error al obtener el token: " + e.getMessage(), e);
+        }
+    }
 
     /**
      * Hace un GET ligero (HEAD bajo el capó) a la URL indicada y
@@ -384,6 +240,108 @@ public class RestClient {
             LOG.warn("Ping a {} falló: {}", url, ex.getMessage());
             return false;
         }
+    }
+
+    public <T, R> T executeExternalService(String url,
+                                           HttpMethod method,
+                                           R request,
+                                           ParameterizedTypeReference<T> responseType,
+                                           String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<R> entity = new HttpEntity<>(request, headers);
+
+        LOG.info("Llamando al servicio externo: {} [{}]", url, method);
+        ResponseEntity<T> response = restTemplate.exchange(url, method, entity, responseType);
+        // LOG.info("Respuesta recibida: {}", response.getBody());
+
+        return response.getBody();
+    }
+    public <T> T executeExternalServiceRest(
+            String url,
+            HttpMethod method,
+            Map<String, ?> queryParams,
+            ParameterizedTypeReference<T> responseType,
+            String token
+    ) {
+        // 1) Construir URL con query params (si aplica)
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
+        if (queryParams != null && !queryParams.isEmpty()) {
+            queryParams.forEach((k, v) -> {
+                if (v == null) return;
+                if (v instanceof Iterable<?>) {
+                    for (Object item : (Iterable<?>) v) {
+                        if (item != null) builder.queryParam(k, item);
+                    }
+                } else if (v.getClass().isArray()) {
+                    Object[] arr = (Object[]) v;
+                    for (Object item : arr) {
+                        if (item != null) builder.queryParam(k, item);
+                    }
+                } else {
+                    builder.queryParam(k, v);
+                }
+            });
+        }
+        URI uri = builder.build(true).encode(StandardCharsets.UTF_8).toUri();
+
+        // 2) Headers
+        HttpHeaders headers = new HttpHeaders();
+        if (token != null && !token.isEmpty()) {
+            headers.setBearerAuth(token);
+        }
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+        // 3) Entity (sin body)
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        // 4) Exchange
+        LOG.info("Invocando servicio externo: {} [{}]", uri, method);
+        ResponseEntity<T> response = restTemplate.exchange(uri, method, entity, responseType);
+
+        LOG.info("Respuesta HTTP {} recibida desde {}", response.getStatusCode(), uri);
+        return response.getBody();
+    }
+
+
+//    public <T> T get(String url, Map<String, ?> queryParams, Class<T> responseType) throws Exception {
+//        Objects.requireNonNull(url, "url must not be null");
+//        Objects.requireNonNull(responseType, "responseType must not be null");
+//
+//        String finalUrl = buildUrlWithQueryParams(url, queryParams);
+//
+//        HttpHeaders headers = new HttpHeaders();
+//        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+//
+//        HttpEntity<Void> entity = new HttpEntity<>(headers);
+//
+//        ResponseEntity<T> response = retry(3, 2000, () ->
+//                restTemplate.exchange(finalUrl, HttpMethod.GET, entity, responseType)
+//        );
+//
+//        return response.getBody();
+//    }
+
+    private String buildUrlWithQueryParams(String url, Map<String, ?> queryParams) {
+        if (queryParams == null || queryParams.isEmpty()) {
+            return url;
+        }
+
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
+        queryParams.forEach((key, value) -> {
+            if (key != null && value != null) {
+                if (value instanceof Collection<?>) {
+                    ((Collection<?>) value).stream()
+                            .filter(Objects::nonNull)
+                            .forEach(v -> builder.queryParam(key, v));
+                } else {
+                    builder.queryParam(key, value);
+                }
+            }
+        });
+        return builder.build().toUriString();
     }
 
 }
