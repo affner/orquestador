@@ -1,4 +1,4 @@
-package mx.com.actinver.orquestador.ws;
+package mx.com.actinver.orquestador.constant;
 
 public class WsConstants {
 

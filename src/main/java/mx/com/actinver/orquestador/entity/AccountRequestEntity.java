@@ -1,35 +1,35 @@
-package mx.com.actinver.orquestador.dto;
+package mx.com.actinver.orquestador.entity;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import javax.validation.constraints.NotNull;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class DescargaCfdiRequestDto {
+public class AccountRequestEntity {
 
+
+    @JsonProperty("contrato")
     private String contractId;
 
-    @NotNull
-    private String year;
-
-    @NotNull
+    @JsonProperty("mes")
     private String month;
 
-    @NotNull
+    @JsonProperty("anio")
+    private String year;
+
+    @JsonProperty("negocio")
     private String businessId;
 
+    @JsonProperty("validez")
     private String validityId;
 
-    private String fileType; // Puede ser "PDF" o "XML" "ZIP"
-
+    @JsonProperty("credito")
     private String credit;
-
 }

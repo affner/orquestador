@@ -4,8 +4,8 @@ import lombok.*;
 
 import javax.xml.bind.annotation.*;
 
-import static mx.com.actinver.orquestador.ws.WsConstants.NS_WSIM;
-import static mx.com.actinver.orquestador.ws.WsConstants.NS_WSUS;
+import static mx.com.actinver.orquestador.constant.WsConstants.NS_WSIM;
+import static mx.com.actinver.orquestador.constant.WsConstants.NS_WSUS;
 
 /**
  * Representa: <ObtenLoginResponse xmlns:ns2="http://Digipro.servicios/WsImagenes/WsImagenes" xmlns="http://Digipro.servicios/WsUsuarios/WsUsuarios">

@@ -1,4 +1,4 @@
-package mx.com.actinver.orquestador.ws.endpoint;
+package mx.com.actinver.orquestador.endpoint;
 
 import mx.com.actinver.orquestador.ws.generated.*;
 import mx.com.actinver.orquestador.service.WsImagenesService;
@@ -43,10 +43,10 @@ public class MockWsImagenesEndpoint {
     }
 
     // ContestaFileHSM
-    @PayloadRoot(namespace = NAMESPACE, localPart = "ContestaFileHSM")
-    @ResponsePayload
-    public StreamSource contestaFileHSM(@RequestPayload ContestaFileHSMRequest req) throws Exception {
-        return imagenesService.contestaFileHSMResponse(req);
-    }
+//    @PayloadRoot(namespace = NAMESPACE, localPart = "ContestaFileHSM")
+//    @ResponsePayload
+//    public StreamSource contestaFileHSM(@RequestPayload ContestaFileHSMRequest req) throws Exception {
+//        return imagenesService.contestaFileHSMResponse(req);
+//    }
 
 }

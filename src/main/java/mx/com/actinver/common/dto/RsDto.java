@@ -118,4 +118,24 @@ public class RsDto<T> {
 
 		return first;
 	}
+
+	/**
+	 * Permite comprobar si el contenido es nulo o vacio.
+	 *
+	 * @return <code>True</code> si y solo si el contenido es nulo o vacio.
+	 */
+	@JsonIgnore
+	public boolean isEmpty() {
+		return Objects.isNull(content) || content.isEmpty();
+	}
+
+	/**
+	 * Permite comprobar si el contenido no es nulo o no es vacio.
+	 *
+	 * @return <code>True</code> si y solo si el contenido no es nulo o no es vacio.
+	 */
+	@JsonIgnore
+	public boolean isNotEmpty() {
+		return !isEmpty();
+	}
 }

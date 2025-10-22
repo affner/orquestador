@@ -68,11 +68,11 @@ public enum SpConfigEnum {
 
 	/** Procedimiento para finalizar y aplicar excepciones de la prooduccion para el paso 11. */
 	SP_ACTIVATE_PROD("{ CALL USR_EXS_PORTAL.PKG_PROD_RELEASE.SP_ACTIVATE_PROD (?, ?, ?, ?, ?) }"),
-	
+
 	/**
 	 * Procedimiento para encontrar la informacion del estado de cuenta por contrato/credito.
 	 */
-	ACC_STMT_FINDER("{ CALL USR_EXS_PORTAL.PKG_REPORTS.SP_RPT_EDC_H(?, ?, ?, ?, ?) }");
+	ACC_STMT_FINDER("{ CALL USR_EXS_PORTAL.PKG_REPORTS.SP_RPT_EDC_H(?, ?, ?, ?, ?)}");
 	
 	/**
 	 * Sentencia para el llamado del Procedimiento.

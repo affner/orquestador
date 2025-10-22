@@ -11,21 +11,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class DescargaCfdiResponseDto {
+public class DocumentResponse {
 
-    private byte[] fileData;
+    private Long openTextId;
 
-    private String fileName;
+    private Long openTextVersion;
 
-    private String fileType; // Puede ser "PDF" o "XML" "ZIP"
+    private String mimeType;
 
-    private String fileDescription;
+    private String name;
 
-    private String docId;
-
-    private String createdBy;
-
-    private String digitalDate;
-
-    private String message;
+    private byte[] file;
 }

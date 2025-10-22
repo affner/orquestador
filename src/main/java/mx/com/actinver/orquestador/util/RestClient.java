@@ -6,9 +6,16 @@ import lombok.Setter;
 import mx.com.actinver.common.exception.ConsecutiveServerErrorLimitReachedException;
 import mx.com.actinver.orquestador.dto.DescargaCfdiResponseDto;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.ParameterizedTypeReference;
@@ -19,6 +26,7 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import javax.annotation.PostConstruct;
+import javax.net.ssl.SSLContext;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -40,9 +48,22 @@ public class RestClient {
     @PostConstruct
     private void init() {
         try {
-            // Pool de conexiones
+            // 1) Construye un SSLContext que confía en TODO
+            SSLContext sslContext = SSLContextBuilder.create()
+                    .loadTrustMaterial((chain, authType) -> true)
+                    .build();
+// 2) Crea el socket factory para HTTPS usando tu SSLContext y sin hostname check
+            SSLConnectionSocketFactory sslSocketFactory =
+                    new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
+// 3) Registra los socket factories para HTTP y HTTPS
+            Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder
+                    .<ConnectionSocketFactory>create()
+                    .register("http", PlainConnectionSocketFactory.getSocketFactory())
+                    .register("https", sslSocketFactory)
+                    .build();
+// 4) Usa ese registry en tu ConnectionManager
             PoolingHttpClientConnectionManager connMgr =
-                    new PoolingHttpClientConnectionManager();
+                    new PoolingHttpClientConnectionManager(socketFactoryRegistry);
             connMgr.setMaxTotal(400);
             connMgr.setDefaultMaxPerRoute(300);
             // Valida conexiones tras 10s inactivas
@@ -306,42 +327,29 @@ public class RestClient {
     }
 
 
-//    public <T> T get(String url, Map<String, ?> queryParams, Class<T> responseType) throws Exception {
-//        Objects.requireNonNull(url, "url must not be null");
-//        Objects.requireNonNull(responseType, "responseType must not be null");
-//
-//        String finalUrl = buildUrlWithQueryParams(url, queryParams);
-//
-//        HttpHeaders headers = new HttpHeaders();
-//        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-//
-//        HttpEntity<Void> entity = new HttpEntity<>(headers);
-//
-//        ResponseEntity<T> response = retry(3, 2000, () ->
-//                restTemplate.exchange(finalUrl, HttpMethod.GET, entity, responseType)
-//        );
-//
-//        return response.getBody();
-//    }
 
-    private String buildUrlWithQueryParams(String url, Map<String, ?> queryParams) {
-        if (queryParams == null || queryParams.isEmpty()) {
-            return url;
+    public byte[] descargarCfdiFile(String url
+    ) {
+        // Set headers to accept any binary stream
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(Arrays.asList(MediaType.APPLICATION_OCTET_STREAM));
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        LOG.info("Llamando al servicio externo: {} [{}]", url, HttpMethod.GET.name());
+
+        ResponseEntity<byte[]> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                byte[].class
+        );
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            return response.getBody();
+        } else {
+            LOG.error("Error al descargar cfdi de XSA Status code: " + response.getStatusCode());
+            return null;
         }
-
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
-        queryParams.forEach((key, value) -> {
-            if (key != null && value != null) {
-                if (value instanceof Collection<?>) {
-                    ((Collection<?>) value).stream()
-                            .filter(Objects::nonNull)
-                            .forEach(v -> builder.queryParam(key, v));
-                } else {
-                    builder.queryParam(key, value);
-                }
-            }
-        });
-        return builder.build().toUriString();
     }
 
 }

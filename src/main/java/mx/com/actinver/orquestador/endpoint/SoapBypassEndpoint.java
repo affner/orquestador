@@ -1,9 +1,6 @@
-package mx.com.actinver.orquestador.ws.endpoint;
+package mx.com.actinver.orquestador.endpoint;
 
-import mx.com.actinver.orquestador.ws.generated.ClsLlaveExpediente;
-import mx.com.actinver.orquestador.ws.generated.ContestaExpedientexLlaveRequest;
 import mx.com.actinver.orquestador.service.WsImagenesService;
-import mx.com.actinver.orquestador.ws.util.SoapRequestUtils;
 import mx.com.actinver.orquestador.ws.util.SoapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,7 +10,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import javax.xml.bind.JAXBContext;
 import java.io.IOException;
 
 /**
@@ -31,16 +27,6 @@ public class SoapBypassEndpoint {
     @Autowired
     private WsImagenesService imagenesService;
 
-
-    // JAXBContext cache (inmutable after init in this simple implementation)
-    private static final Class<?>[] JAXB_CTX_INIT_CLASSES = new Class<?>[]{
-            ContestaExpedientexLlaveRequest.class,
-            ClsLlaveExpediente.class,
-            mx.com.actinver.orquestador.ws.generated.ClsLlaveCampo.class,
-            mx.com.actinver.orquestador.ws.usuarios.IDTicket.class
-    };
-
-    private volatile JAXBContext JAXB_CTX = SoapRequestUtils.buildContext(JAXB_CTX_INIT_CLASSES);
 
 
     /* ------------------------------------------------------------------  WSDL  */

@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 import javax.xml.bind.annotation.*;
 import javax.xml.datatype.XMLGregorianCalendar;
 
-import static mx.com.actinver.orquestador.ws.WsConstants.NS_WSIM;
-import static mx.com.actinver.orquestador.ws.WsConstants.NS_WSUS;
+import static mx.com.actinver.orquestador.constant.WsConstants.NS_WSIM;
+import static mx.com.actinver.orquestador.constant.WsConstants.NS_WSUS;
 
 @Data @AllArgsConstructor @NoArgsConstructor
 @XmlAccessorType(XmlAccessType.FIELD)

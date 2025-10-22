@@ -1,12 +1,16 @@
 package mx.com.actinver.orquestador.service.impl;
 
+import mx.com.actinver.common.dto.RsDto;
 import mx.com.actinver.conf.DynamicString;
-import mx.com.actinver.orquestador.dto.DescargaCfdiRequestDto;
-import mx.com.actinver.orquestador.dto.DescargaCfdiResponseDto;
-import mx.com.actinver.orquestador.dto.LlaveMetadataDto;
+import mx.com.actinver.orquestador.dao.SpRepEdcDao;
+import mx.com.actinver.orquestador.dto.*;
+import mx.com.actinver.orquestador.entity.AccountEntity;
+import mx.com.actinver.orquestador.entity.AccountRequestEntity;
+import mx.com.actinver.orquestador.service.DocumentsService;
+import mx.com.actinver.orquestador.util.CatalogIdsEnum;
 import mx.com.actinver.orquestador.util.DynamicProperty;
 import mx.com.actinver.orquestador.util.RestClient;
-import mx.com.actinver.orquestador.ws.Decision;
+import mx.com.actinver.orquestador.constant.Decision;
 import mx.com.actinver.orquestador.ws.generated.*;
 import mx.com.actinver.orquestador.ws.util.PassthroughSoapClient;
 import mx.com.actinver.orquestador.service.WsImagenesService;
@@ -14,7 +18,7 @@ import mx.com.actinver.orquestador.ws.usuarios.IDTicket;
 import mx.com.actinver.orquestador.ws.usuarios.ObtenLoginResponse;
 import mx.com.actinver.orquestador.ws.usuarios.RRespuesta;
 import mx.com.actinver.orquestador.ws.usuarios.Respuesta;
-import mx.com.actinver.orquestador.ws.util.SoapRequestUtils;
+import mx.com.actinver.orquestador.ws.util.SoapUtils;
 import mx.com.actinver.orquestador.ws.util.WsImagenesPrefixMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +36,7 @@ import javax.xml.bind.Marshaller;
 import javax.xml.datatype.DatatypeFactory;
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.transform.stream.StreamSource;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -39,6 +44,8 @@ import java.time.LocalDateTime;
 import java.time.chrono.ChronoLocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class WsImagenesServiceImpl implements WsImagenesService {
@@ -51,10 +58,16 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     private PassthroughSoapClient client;
 
     @Autowired
-    private SoapRequestUtils soapRequestUtils;
+    private SoapUtils soapRequestUtils;
 
     @Autowired
     private RestClient restClient;
+
+    @Autowired
+    private SpRepEdcDao spRepEdcDao;
+
+    @Autowired
+    private DocumentsService docsService;
 
     @DynamicProperty("${id-portal.url}")
     private DynamicString idPortalUrl;
@@ -70,6 +83,10 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 
     @DynamicProperty("${api-stamp.password}")
     private DynamicString apiStampPassword;
+
+    @DynamicProperty("${api-xsa.url}")
+    private DynamicString xsaUrl;
+
 
     // ----------------- implementación existente (dominio) -----------------
 
@@ -143,7 +160,6 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     private List<FileVariant> determineVariants(int tipoDocID) {
         List<FileVariant> variants = new ArrayList<>();
 
-
         if (tipoDocID == 0) {
             variants.add(FileVariant.PDF);
             variants.add(FileVariant.XML);
@@ -165,26 +181,22 @@ public class WsImagenesServiceImpl implements WsImagenesService {
             LOG.warn("No se pudo construir la petición para descargaCfdi (metadata incompleta)");
             return null;
         }
-
-        Map<String, Object> params = buildQueryParams(requestDto);
         Long executor = 4L;  // hardcode temporal a un canal digital fijo
-        if (executor != null) {
-            params.put("executor", executor);
-        }
-
         try {
-            String token = restClient.getAccessToken(descargaCfdiServiceUrl + "/oauth/token", apiStampUserName.toString(), apiStampPassword.toString());
-
-            DescargaCfdiResponseDto response = restClient.executeExternalServiceRest(
-                    descargaCfdiServiceUrl + "/api/descargaCfdi",
-                    HttpMethod.GET,
-                    params,
-                    new ParameterizedTypeReference<DescargaCfdiResponseDto>() {
-                    },
-                    token
-            );
-
-            return response;
+//            String token = restClient.getAccessToken(descargaCfdiServiceUrl + "/oauth/token", apiStampUserName.toString(), apiStampPassword.toString());
+//
+//            DescargaCfdiResponseDto response = restClient.executeExternalServiceRest(
+//                    descargaCfdiServiceUrl + "/api/descargaCfdi",
+//                    HttpMethod.GET,
+//                    params,
+//                    new ParameterizedTypeReference<DescargaCfdiResponseDto>() {
+//                    },
+//                    token
+//            );
+                // funcionalidad migrada
+            LOG.info("getDescargaCfdi: {}", requestDto);
+            requestDto.setValidityId(String.valueOf(CatalogIdsEnum.CON_VALIDEZ.getId()));
+            return getDescargaCfdi(requestDto, executor);
         } catch (Exception e) {
             LOG.error("Error invocando descargaCfdi con fileType={}", fileType, e);
             return null;
@@ -455,7 +467,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 
     @Override
     public ResponseEntity<String> bypass(String rawXml) {
-        // Reenvío íntegro al sistema legacy (consulta histórica)
+        // Reenvío íntegro al sistema legacy
         try {
             LOG.info("peticion a idPortal: {}", idPortalUrl);
             String rawOut = client.invokeRaw(rawXml);
@@ -470,7 +482,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 
     public String buildSoapFault(String faultString) {
 
-        // escapamos caracteres XML básicos por seguridad (muy minimalista)
+        // escapamos caracteres XML básicos por seguridad
         String msg = faultString == null ? "" :
                 faultString.replace("&", "&amp;")
                         .replace("<", "&lt;")
@@ -487,4 +499,174 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     }
 
 
+    public DescargaCfdiResponseDto getDescargaCfdi(DescargaCfdiRequestDto descargaCfdiRequestDto,Long executor) {
+        DescargaCfdiResponseDto response = new DescargaCfdiResponseDto();
+
+        try{
+            AccountRequestEntity accountRequestEntity = AccountRequestEntity.builder()
+                    .contractId(descargaCfdiRequestDto.getContractId())
+                    .year(descargaCfdiRequestDto.getYear())
+                    .month(descargaCfdiRequestDto.getMonth())
+                    .businessId(descargaCfdiRequestDto.getBusinessId())
+                    .validityId(descargaCfdiRequestDto.getValidityId())
+                    .credit(descargaCfdiRequestDto.getCredit())
+                    .build();
+
+            AccountDto accountDto = new AccountDto();
+            LOG.info("spRepEdcDao.find: {}", accountRequestEntity);
+            RsDto<AccountEntity> rs =  spRepEdcDao.find(accountRequestEntity, executor);
+            LOG.info("rs: {}", rs);
+            if(descargaCfdiRequestDto.getCredit()!= null){
+                if (rs.getContent() == null || rs.getContent().isEmpty() ){
+                    LOG.warn("No se encontró información para el credito: {} ",descargaCfdiRequestDto.getCredit());
+                    response.setMessage("No se encontró información para el credito: "+ descargaCfdiRequestDto.getCredit());
+                    return response;
+                }
+                accountDto = AccountDto.builder(rs.getContent().get(0)).build();
+                LOG.info("Respuesta de spRepEdcDao con crédito {}: {}", accountRequestEntity.getCredit(), accountDto.getXsaInfo());
+            }else{
+                if (rs.getFirst() == null ){
+                    LOG.warn("No se encontró información para el contrato: {} ",descargaCfdiRequestDto.getContractId());
+                    response.setMessage("No se encontró información para el contrato: "+ descargaCfdiRequestDto.getContractId());
+                    return response;
+                }
+                LOG.info("Respuesta de spRepEdcDao {}", accountDto.getXsaInfo());
+                accountDto = AccountDto.builder(rs.getFirst()).build();
+            }
+
+            LOG.info("accountDto: {}", accountDto);
+            if (accountDto.getXsaInfo() == null || accountDto.getXsaInfo().getUuid() == null){
+                LOG.warn("No se encontró el UUID para la solicitud: {}", descargaCfdiRequestDto);
+                response.setMessage("No se encontró el UUID para la solicitud: {}" + descargaCfdiRequestDto);
+                return response;
+            }
+            String uuid = accountDto.getXsaInfo().getUuid();
+            String digitalDate = accountDto.getXsaInfo().getFecha();
+            LOG.info("Respuesta de spRepEdcDao UUID: {}", uuid);
+            LOG.info("uuid: {}", uuid);
+            if (descargaCfdiRequestDto.getFileType().equalsIgnoreCase(FileType.ZIP.name())) {
+                LOG.info("descargaZip: {}", uuid);
+                String urlPdf = buildUrlXsa(FileType.PDF.extension, uuid);
+                String urlXml = buildUrlXsa(FileType.XML.extension, uuid);
+
+                byte[] fileContentsPDF = descargarCfdiFileXsa(descargaCfdiRequestDto,accountDto.getVersion(), executor);
+                byte[] fileContentsXML = restClient.descargarCfdiFile(urlXml);
+
+                response.setFileName(buildFileName(uuid, FileType.ZIP.extension));
+                response.setFileDescription(FileType.ZIP.description);
+                response.setFileType(FileType.ZIP.extension);
+                response.setDigitalDate(digitalDate);
+
+                response.setFileData(createZip(fileContentsPDF, buildFileName(uuid, FileType.PDF.extension),
+                        fileContentsXML,  buildFileName(uuid , FileType.XML.extension)));
+                return response;
+            }else{
+                byte[] fileContents = null;
+                if (descargaCfdiRequestDto.getFileType().equalsIgnoreCase(FileType.PDF.name())) {
+                    LOG.info("descargaPDF: {}", uuid);
+                    fileContents = descargarCfdiFileXsa(descargaCfdiRequestDto,accountDto.getVersion(), executor);
+                }else{
+                    LOG.info("descargaXML: {}", uuid);
+                    fileContents = restClient.descargarCfdiFile(buildUrlXsa(descargaCfdiRequestDto.getFileType(), uuid));
+
+                }
+                if (fileContents != null) {
+                    response.setFileName(buildFileName(accountDto.getXsaInfo().getUuid(), descargaCfdiRequestDto.getFileType()));
+                    response.setFileData(fileContents);
+                    response.setFileType(descargaCfdiRequestDto.getFileType().toLowerCase());
+                    response.setFileDescription(FileType.fromExtension(descargaCfdiRequestDto.getFileType()).getDescription());
+                    response.setDigitalDate(digitalDate);
+                    return response;
+                }
+            }
+        } catch (Exception e) {
+            LOG.error("Error al obtener el cfdi: ", e);
+            response.setFileData(null);
+            response.setMessage("Error al obtener el cfdi: " + e.getMessage());
+        }
+        return response;
+    }
+
+    private String buildUrlXsa(String fileType, String uuid){
+        return xsaUrl.toString()
+                + "/descargas?"
+                +"type="+fileType.toUpperCase()
+                +"&tipo=I"
+                +"&uuid="+uuid;
+    }
+
+    enum FileType {
+        PDF("pdf", "Presentación PDF(Documento Principal)"),
+        XML("xml", "Presentación XML(Represtacion xml de cfdi)"),
+        ZIP("zip", "Presentación ZIP(Documento empaquetado)");
+        private final String extension;
+
+        private final String description;
+
+        FileType(String extension, String description) {
+            this.extension = extension;
+            this.description = description;
+        }
+
+        public String getExtension() {
+            return extension;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public static FileType fromExtension(String extension) {
+            return Arrays.stream(values())
+                    .filter(type -> type.extension.equalsIgnoreCase(extension))
+                    .findFirst()
+                    .orElse(null);
+        }
+    }
+    public byte[] descargarCfdiFileXsa(DescargaCfdiRequestDto descargaCfdiRequestDto,
+                                       TemplateContent templateContent,
+                                       Long executor) {
+        DocumentResponseDto  responseDto  = null;
+        try{
+            AccStmtRequestDto input = AccStmtRequestDto.builder()
+                    .year(Long.valueOf(descargaCfdiRequestDto.getYear()))
+                    .month(Long.valueOf(descargaCfdiRequestDto.getMonth()))
+                    .business(Long.valueOf(descargaCfdiRequestDto.getBusinessId()))
+                    .contract(Long.valueOf(descargaCfdiRequestDto.getContractId()))
+                    .credit(Long.valueOf(descargaCfdiRequestDto.getCredit()))
+                    .validity(Long.valueOf(descargaCfdiRequestDto.getValidityId())) //CatalogIdsEnum.CON_VALIDEZ.getId()
+                    .build();
+
+            responseDto = docsService.exsDocumenter(input,templateContent,
+                    executor);
+
+            return responseDto.getFileContent();
+        }catch (Exception e){
+            LOG.error("Error al obtener el cfdi: ", e);
+        }
+        return null;
+    }
+
+    private byte[] createZip(byte[] file1, String name1, byte[] file2, String name2) throws IOException {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ZipOutputStream zos = new ZipOutputStream(baos)) {
+
+            ZipEntry entry1 = new ZipEntry(name1);
+            zos.putNextEntry(entry1);
+            zos.write(file1);
+            zos.closeEntry();
+
+            ZipEntry entry2 = new ZipEntry(name2);
+            zos.putNextEntry(entry2);
+            zos.write(file2);
+            zos.closeEntry();
+
+            zos.finish();
+            return baos.toByteArray();
+        }
+    }
+
+    private String buildFileName(String uuid, String fileType){
+        return uuid + "." + fileType.toLowerCase();
+    }
 }

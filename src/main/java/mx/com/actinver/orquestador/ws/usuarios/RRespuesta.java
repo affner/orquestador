@@ -9,7 +9,7 @@ import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlType;
 
-import static mx.com.actinver.orquestador.ws.WsConstants.NS_WSUS;
+import static mx.com.actinver.orquestador.constant.WsConstants.NS_WSUS;
 
 /**
  * rRespuesta inner class: note fields are placed in the WsUsuarios namespace (default in final XML).
