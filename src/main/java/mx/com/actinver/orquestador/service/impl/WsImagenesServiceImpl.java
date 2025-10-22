@@ -1,4 +1,4 @@
-package mx.com.actinver.orquestador.ws.service.impl;
+package mx.com.actinver.orquestador.service.impl;
 
 import mx.com.actinver.conf.DynamicString;
 import mx.com.actinver.orquestador.dto.DescargaCfdiRequestDto;
@@ -7,10 +7,9 @@ import mx.com.actinver.orquestador.dto.LlaveMetadataDto;
 import mx.com.actinver.orquestador.util.DynamicProperty;
 import mx.com.actinver.orquestador.util.RestClient;
 import mx.com.actinver.orquestador.ws.Decision;
-import mx.com.actinver.orquestador.ws.endpoint.RawSoapHolder;
 import mx.com.actinver.orquestador.ws.generated.*;
-import mx.com.actinver.orquestador.ws.proxy.PassthroughSoapClient;
-import mx.com.actinver.orquestador.ws.service.WsImagenesService;
+import mx.com.actinver.orquestador.ws.util.PassthroughSoapClient;
+import mx.com.actinver.orquestador.service.WsImagenesService;
 import mx.com.actinver.orquestador.ws.usuarios.IDTicket;
 import mx.com.actinver.orquestador.ws.usuarios.ObtenLoginResponse;
 import mx.com.actinver.orquestador.ws.usuarios.RRespuesta;
@@ -319,7 +318,6 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     @Override
     public StreamSource obtenLoginResponse(ObtenLoginRequest req) throws Exception {
         LOG.info("[Service] ObtenLogin called - user={}, proyectoID={}", req.getUserID(), req.getProyectoID());
-        LOG.debug("[Service] Raw SOAP (holder) length={}", RawSoapHolder.get() != null ? RawSoapHolder.get().length() : 0);
 
         Respuesta r = new Respuesta();
         IDTicket t = obtenLogin(req.getUserID(), req.getStrPwd(), req.getProyectoID(),
@@ -396,7 +394,6 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     public StreamSource contestaExpedientexLlaveResponse(ContestaExpedientexLlaveRequest req) throws Exception {
         LOG.info("[Service] ContestaExpedientexLlave - proyID={}, expedID={}, tipoDocID={}",
                 req.getProyID(), req.getExpedienteID(), req.getTipoDocID());
-        LOG.debug("[Service] Raw SOAP len={}", RawSoapHolder.get() != null ? RawSoapHolder.get().length() : 0);
 
 
         Respuesta r = new Respuesta();
@@ -429,7 +426,6 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     @Override
     public StreamSource contestaFileHSMResponse(ContestaFileHSMRequest req) throws Exception {
         LOG.info("[Service] ContestaFileHSM - docID={}, proyID={}", req.getDocID(), req.getProyID());
-        LOG.debug("[Service] Raw SOAP len={}", RawSoapHolder.get() != null ? RawSoapHolder.get().length() : 0);
 
         Respuesta r = new Respuesta();
         ClsFileHSM f = contestaFileHSM(req.getDocID(), req.getProyID(), req.getDocIDPadreExp(), req.getTicket(), r);

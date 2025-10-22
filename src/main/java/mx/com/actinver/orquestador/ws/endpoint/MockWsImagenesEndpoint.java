@@ -1,7 +1,7 @@
 package mx.com.actinver.orquestador.ws.endpoint;
 
 import mx.com.actinver.orquestador.ws.generated.*;
-import mx.com.actinver.orquestador.ws.service.WsImagenesService;
+import mx.com.actinver.orquestador.service.WsImagenesService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,9 +13,11 @@ import org.springframework.ws.server.endpoint.annotation.ResponsePayload;
 
 import javax.xml.transform.stream.StreamSource;
 
+
+// este endpoint termina por ser solo un mock y se tiene que apagar
 @Endpoint
 @Component
-public class WsImagenesEndpoint {
+public class MockWsImagenesEndpoint {
     private static final Logger LOG = LogManager.getLogger(SoapBypassEndpoint.class);
 
     public static final String NAMESPACE = "http://Digipro.servicios/WsImagenes/WsImagenes";

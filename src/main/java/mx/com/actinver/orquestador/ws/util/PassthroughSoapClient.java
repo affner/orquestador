@@ -1,4 +1,4 @@
-package mx.com.actinver.orquestador.ws.proxy;
+package mx.com.actinver.orquestador.ws.util;
 
 import java.io.*;
 import java.net.HttpURLConnection;

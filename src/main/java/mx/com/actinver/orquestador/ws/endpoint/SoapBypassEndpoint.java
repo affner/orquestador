@@ -2,7 +2,7 @@ package mx.com.actinver.orquestador.ws.endpoint;
 
 import mx.com.actinver.orquestador.ws.generated.ClsLlaveExpediente;
 import mx.com.actinver.orquestador.ws.generated.ContestaExpedientexLlaveRequest;
-import mx.com.actinver.orquestador.ws.service.WsImagenesService;
+import mx.com.actinver.orquestador.service.WsImagenesService;
 import mx.com.actinver.orquestador.ws.util.SoapRequestUtils;
 import mx.com.actinver.orquestador.ws.util.SoapUtils;
 import org.apache.logging.log4j.LogManager;
