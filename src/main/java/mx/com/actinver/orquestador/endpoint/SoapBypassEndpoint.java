@@ -1,5 +1,6 @@
 package mx.com.actinver.orquestador.endpoint;
 
+import mx.com.actinver.orquestador.entity.AuditLogEntity;
 import mx.com.actinver.orquestador.service.WsImagenesService;
 import mx.com.actinver.orquestador.ws.util.SoapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -67,7 +68,8 @@ public class SoapBypassEndpoint {
             return imagenesService.contestaExpedientexLlaveProcess(rawXml, op);
 
         } else {
-            return imagenesService.bypass(rawXml);
+
+            return imagenesService.bypass(rawXml, op);
         }
     }
 

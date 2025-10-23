@@ -1,11 +1,14 @@
 package mx.com.actinver.orquestador.service;
 
+import mx.com.actinver.orquestador.entity.AuditLogEntity;
 import mx.com.actinver.orquestador.ws.generated.*;
 import org.springframework.http.ResponseEntity;
 
 import javax.xml.transform.stream.StreamSource;
 
 public interface WsImagenesService {
+
+    void saveAuditLog(AuditLogEntity auditLogEntity, long executor);
 
     // nuevos métodos: responden ya marshalleados / listos para el endpoint
     StreamSource obtenLoginResponse(ObtenLoginRequest req) throws Exception;
@@ -15,5 +18,5 @@ public interface WsImagenesService {
     StreamSource contestaExpedientexLlaveResponse(ContestaExpedientexLlaveRequest req) throws Exception;
     StreamSource contestaFileHSMResponse(ContestaFileHSMRequest req) throws Exception;
 
-    ResponseEntity<String> bypass(String rawXml);
+    ResponseEntity<String> bypass(String rawXml, String op);
 }

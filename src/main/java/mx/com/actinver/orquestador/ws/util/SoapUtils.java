@@ -590,7 +590,7 @@ public class SoapUtils {
                     String contrato = sub(digits, 8, digits.length());
                     if (!negocio.isEmpty() && !contrato.isEmpty()) {
 
-                        return new LlaveMetadataDto(anio4, mes2, contrato, contrato);
+                        return new LlaveMetadataDto(anio4, mes2, Long.parseLong(negocio), Integer.parseInt(contrato));
                     }
                 }
             } catch (Exception ignored) {
@@ -609,7 +609,7 @@ public class SoapUtils {
             if (negocio.isEmpty() || contrato.isEmpty()) {
                 throw new IllegalArgumentException("Negocio/Contrato incompletos en llave: " + llave);
             }
-            return new LlaveMetadataDto(anio4, mes1, negocio, contrato);
+            return new LlaveMetadataDto(anio4, mes1, Long.parseLong(negocio), Integer.parseInt(contrato));
         } catch (Exception ex) {
             throw new IllegalArgumentException("No se pudo parsear la llave: " + llave, ex);
         }
@@ -760,7 +760,7 @@ public class SoapUtils {
         }
 
 
-        return new LlaveMetadataDto(anio, mes, negocioInt, contrato);
+        return new LlaveMetadataDto(anio, mes, Long.parseLong(negocioInt), Integer.parseInt(contrato));
     }
 
 

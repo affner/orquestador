@@ -17,6 +17,6 @@ public class LlaveMetadataDto {
 
     private Integer year;
     private Integer month;
-    private String negocio;
-    private String contrato;
+    private Long negocio;
+    private Integer contrato;
 }

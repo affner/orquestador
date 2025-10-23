@@ -2,29 +2,28 @@ package mx.com.actinver.orquestador.service.impl;
 
 import mx.com.actinver.common.dto.RsDto;
 import mx.com.actinver.conf.DynamicString;
+import mx.com.actinver.orquestador.constant.Decision;
+import mx.com.actinver.orquestador.dao.AuditLogDao;
 import mx.com.actinver.orquestador.dao.SpRepEdcDao;
 import mx.com.actinver.orquestador.dto.*;
 import mx.com.actinver.orquestador.entity.AccountEntity;
 import mx.com.actinver.orquestador.entity.AccountRequestEntity;
+import mx.com.actinver.orquestador.entity.AuditRequestEntity;
+import mx.com.actinver.orquestador.entity.AuditLogEntity;
 import mx.com.actinver.orquestador.service.DocumentsService;
-import mx.com.actinver.orquestador.util.CatalogIdsEnum;
-import mx.com.actinver.orquestador.util.DynamicProperty;
-import mx.com.actinver.orquestador.util.RestClient;
-import mx.com.actinver.orquestador.constant.Decision;
-import mx.com.actinver.orquestador.ws.generated.*;
-import mx.com.actinver.orquestador.ws.util.PassthroughSoapClient;
 import mx.com.actinver.orquestador.service.WsImagenesService;
+import mx.com.actinver.orquestador.util.*;
+import mx.com.actinver.orquestador.ws.generated.*;
 import mx.com.actinver.orquestador.ws.usuarios.IDTicket;
 import mx.com.actinver.orquestador.ws.usuarios.ObtenLoginResponse;
 import mx.com.actinver.orquestador.ws.usuarios.RRespuesta;
 import mx.com.actinver.orquestador.ws.usuarios.Respuesta;
+import mx.com.actinver.orquestador.ws.util.PassthroughSoapClient;
 import mx.com.actinver.orquestador.ws.util.SoapUtils;
 import mx.com.actinver.orquestador.ws.util.WsImagenesPrefixMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -41,11 +40,14 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.time.chrono.ChronoLocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
+import static mx.com.actinver.orquestador.constant.WsConstants.ACTINVER_WS;
 
 @Service
 public class WsImagenesServiceImpl implements WsImagenesService {
@@ -69,6 +71,9 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     @Autowired
     private DocumentsService docsService;
 
+    @Autowired
+    private AuditLogDao auditLogDao;
+
     @DynamicProperty("${id-portal.url}")
     private DynamicString idPortalUrl;
 
@@ -88,6 +93,11 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     private DynamicString xsaUrl;
 
 
+    @Override
+    public void saveAuditLog(AuditLogEntity auditLogEntity, long executor) {
+        LOG.info("saveAuditLog: {}", auditLogEntity);
+//        auditLogDao.save(auditLogEntity, executor);
+    }
     // ----------------- implementación existente (dominio) -----------------
 
     private IDTicket obtenLogin(String userID, String pwd, int proyectoID, String ip, String origen, Respuesta respuestaHolder) {
@@ -154,6 +164,16 @@ public class WsImagenesServiceImpl implements WsImagenesService {
             respuestaHolder.setCategoria("4000");
             respuestaHolder.setDescripcionRespuesta("Expediente obtenido correctamente");
         }
+        AuditRequestEntity accountRequest = AuditRequestEntity.builder().month(metadata.getMonth())
+                .year(metadata.getYear()).businessId(metadata.getNegocio()).contractId(metadata.getContrato().longValue())
+                .validityId(CatalogIdsEnum.CON_VALIDEZ.getId()).build();
+
+        AuditLogEntity auditLog = AuditLogEntity.builder().paq("ID_PORTAL").proc("contestaExpedientexLlave")
+              //  .value(accountRequest)
+                .value(MappingHelper.toJson(accountRequest))
+                .startAt(ZonedDateTime.now(SpDateFormat.MX_ZONE))
+                .result("{\"message\":\"Solicitud exitosa\"}").build();
+        saveAuditLog(auditLog, ACTINVER_WS);
         return arr;
     }
 
@@ -181,7 +201,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
             LOG.warn("No se pudo construir la petición para descargaCfdi (metadata incompleta)");
             return null;
         }
-        Long executor = 4L;  // hardcode temporal a un canal digital fijo
+        Long executor = ACTINVER_WS;  // hardcode temporal a un canal digital fijo
         try {
 //            String token = restClient.getAccessToken(descargaCfdiServiceUrl + "/oauth/token", apiStampUserName.toString(), apiStampPassword.toString());
 //
@@ -193,7 +213,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 //                    },
 //                    token
 //            );
-                // funcionalidad migrada
+            // funcionalidad migrada
             LOG.info("getDescargaCfdi: {}", requestDto);
             requestDto.setValidityId(String.valueOf(CatalogIdsEnum.CON_VALIDEZ.getId()));
             return getDescargaCfdi(requestDto, executor);
@@ -209,8 +229,8 @@ public class WsImagenesServiceImpl implements WsImagenesService {
             return null;
         }
         return DescargaCfdiRequestDto.builder()
-                .contractId(StringUtils.hasText(metadata.getContrato()) ? metadata.getContrato() : null)
-                .businessId(StringUtils.hasText(metadata.getNegocio()) ? metadata.getNegocio() : null)
+                .contractId( metadata.getContrato()!= null?metadata.getContrato().toString():null )
+                .businessId(metadata.getNegocio()!= null ? metadata.getNegocio().toString():null )
                 .year(metadata.getYear() != null ? metadata.getYear().toString() : null)
                 .month(metadata.getMonth() != null ? String.format("%02d", metadata.getMonth()) : null)
                 .fileType(StringUtils.hasText(fileType) ? fileType.toUpperCase(Locale.ROOT) : null)
@@ -361,7 +381,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     }
 
     @Override
-    public ResponseEntity<String> contestaExpedientexLlaveProcess(String rawXml, String op) throws Exception {
+    public ResponseEntity<String> contestaExpedientexLlaveProcess(String rawXml, String op) {
         Decision decision;
         ClsLlaveExpediente llaveExp = null;
 
@@ -372,32 +392,41 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 
             llaveExp = requestObj != null ? requestObj.getLlave() : null;
             LOG.info("llaveExp: {}", llaveExp);
+
+            LOG.info("migrationCutoverDate: {}", migrationCutoverDate);
+            ChronoLocalDate corteHistorico = soapRequestUtils.parseCutoverDateOrDefault(migrationCutoverDate);
+            LOG.info("corteHistorico: {}", corteHistorico);
+
+            decision = soapRequestUtils.decide(op, llaveExp, corteHistorico);
+
+            this.client = new PassthroughSoapClient(idPortalUrl.toString());
+            LOG.info("decision: {}", decision);
+            // Ejecutar según la decisión
+            if (decision == Decision.MODERN) {
+
+                LOG.info("peticion a Interna: ");
+                // Procesamiento interno (consulta moderna)
+                LOG.info("procesarInternamente: {}", op);
+
+                ContestaExpedientexLlaveRequest req = ContestaExpedientexLlaveRequest.builder(rawXml).build();
+                StreamSource streamSource = contestaExpedientexLlaveResponse(req);
+                String respuestaXml = soapRequestUtils.streamSourceToString(streamSource);
+                LOG.info("Respuesta interna generada para {}: {}", op, respuestaXml);
+                return ResponseEntity.ok().contentType(MediaType.TEXT_XML).body(respuestaXml);
+
+            } else {
+                return bypass(rawXml, op);
+            }
         } catch (Exception e) {
+            AuditLogEntity auditLog = AuditLogEntity.builder().paq("ID_PORTAL").proc(op)
+                    .startAt(ZonedDateTime.now(SpDateFormat.MX_ZONE))
+                    .result("{\"message\":\"Fallo solicitud\"}").build();
+            saveAuditLog(auditLog, ACTINVER_WS);
             LOG.error("Error unmarshalling ContestaExpedientexLlaveRequest", e);
-        }
-        LOG.info("migrationCutoverDate: {}", migrationCutoverDate);
-        ChronoLocalDate corteHistorico = soapRequestUtils.parseCutoverDateOrDefault(migrationCutoverDate);
-        LOG.info("corteHistorico: {}", corteHistorico);
 
-        decision = soapRequestUtils.decide(op, llaveExp, corteHistorico);
-
-        this.client = new PassthroughSoapClient(idPortalUrl.toString());
-        LOG.info("decision: {}", decision);
-        // Ejecutar según la decisión
-        if (decision == Decision.MODERN) {
-
-            LOG.info("peticion a Interna: ");
-            // Procesamiento interno (consulta moderna)
-            LOG.info("procesarInternamente: {}", op);
-
-            ContestaExpedientexLlaveRequest req = ContestaExpedientexLlaveRequest.builder(rawXml).build();
-            StreamSource streamSource = contestaExpedientexLlaveResponse(req);
-            String respuestaXml = soapRequestUtils.streamSourceToString(streamSource);
-            LOG.info("Respuesta interna generada para {}: {}", op, respuestaXml);
-            return ResponseEntity.ok().contentType(MediaType.TEXT_XML).body(respuestaXml);
-
-        } else {
-            return bypass(rawXml);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .contentType(MediaType.TEXT_XML)
+                    .body(buildSoapFault(e.getMessage()));
         }
 
     }
@@ -466,13 +495,21 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     }
 
     @Override
-    public ResponseEntity<String> bypass(String rawXml) {
+    public ResponseEntity<String> bypass(String rawXml, String op) {
         // Reenvío íntegro al sistema legacy
         try {
             LOG.info("peticion a idPortal: {}", idPortalUrl);
             String rawOut = client.invokeRaw(rawXml);
+            AuditLogEntity auditLog = AuditLogEntity.builder().paq("ID_PORTAL").proc(op)
+                    .startAt(ZonedDateTime.now(SpDateFormat.MX_ZONE))
+                    .result("{\"message\":\"Solicitud exitosa\"}").build();
+            saveAuditLog(auditLog, ACTINVER_WS);
             return ResponseEntity.ok().contentType(MediaType.TEXT_XML).body(rawOut);
         } catch (IOException io) {
+            AuditLogEntity auditLog = AuditLogEntity.builder().paq("ID_PORTAL").proc(op)
+                    .startAt(ZonedDateTime.now(SpDateFormat.MX_ZONE))
+                    .result("{\"message\":\"Fallo solicitud\"}").build();
+            saveAuditLog(auditLog, ACTINVER_WS);
             // Error comunicando con legacy: devolver Fault SOAP
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                     .contentType(MediaType.TEXT_XML)
@@ -499,10 +536,10 @@ public class WsImagenesServiceImpl implements WsImagenesService {
     }
 
 
-    public DescargaCfdiResponseDto getDescargaCfdi(DescargaCfdiRequestDto descargaCfdiRequestDto,Long executor) {
+    public DescargaCfdiResponseDto getDescargaCfdi(DescargaCfdiRequestDto descargaCfdiRequestDto, Long executor) {
         DescargaCfdiResponseDto response = new DescargaCfdiResponseDto();
 
-        try{
+        try {
             AccountRequestEntity accountRequestEntity = AccountRequestEntity.builder()
                     .contractId(descargaCfdiRequestDto.getContractId())
                     .year(descargaCfdiRequestDto.getYear())
@@ -514,20 +551,20 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 
             AccountDto accountDto = new AccountDto();
             LOG.info("spRepEdcDao.find: {}", accountRequestEntity);
-            RsDto<AccountEntity> rs =  spRepEdcDao.find(accountRequestEntity, executor);
+            RsDto<AccountEntity> rs = spRepEdcDao.find(accountRequestEntity, executor);
             LOG.info("rs: {}", rs);
-            if(descargaCfdiRequestDto.getCredit()!= null){
-                if (rs.getContent() == null || rs.getContent().isEmpty() ){
-                    LOG.warn("No se encontró información para el credito: {} ",descargaCfdiRequestDto.getCredit());
-                    response.setMessage("No se encontró información para el credito: "+ descargaCfdiRequestDto.getCredit());
+            if (descargaCfdiRequestDto.getCredit() != null) {
+                if (rs.getContent() == null || rs.getContent().isEmpty()) {
+                    LOG.warn("No se encontró información para el credito: {} ", descargaCfdiRequestDto.getCredit());
+                    response.setMessage("No se encontró información para el credito: " + descargaCfdiRequestDto.getCredit());
                     return response;
                 }
                 accountDto = AccountDto.builder(rs.getContent().get(0)).build();
                 LOG.info("Respuesta de spRepEdcDao con crédito {}: {}", accountRequestEntity.getCredit(), accountDto.getXsaInfo());
-            }else{
-                if (rs.getFirst() == null ){
-                    LOG.warn("No se encontró información para el contrato: {} ",descargaCfdiRequestDto.getContractId());
-                    response.setMessage("No se encontró información para el contrato: "+ descargaCfdiRequestDto.getContractId());
+            } else {
+                if (rs.getFirst() == null) {
+                    LOG.warn("No se encontró información para el contrato: {} ", descargaCfdiRequestDto.getContractId());
+                    response.setMessage("No se encontró información para el contrato: " + descargaCfdiRequestDto.getContractId());
                     return response;
                 }
                 LOG.info("Respuesta de spRepEdcDao {}", accountDto.getXsaInfo());
@@ -535,7 +572,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
             }
 
             LOG.info("accountDto: {}", accountDto);
-            if (accountDto.getXsaInfo() == null || accountDto.getXsaInfo().getUuid() == null){
+            if (accountDto.getXsaInfo() == null || accountDto.getXsaInfo().getUuid() == null) {
                 LOG.warn("No se encontró el UUID para la solicitud: {}", descargaCfdiRequestDto);
                 response.setMessage("No se encontró el UUID para la solicitud: {}" + descargaCfdiRequestDto);
                 return response;
@@ -549,7 +586,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
                 String urlPdf = buildUrlXsa(FileType.PDF.extension, uuid);
                 String urlXml = buildUrlXsa(FileType.XML.extension, uuid);
 
-                byte[] fileContentsPDF = descargarCfdiFileXsa(descargaCfdiRequestDto,accountDto.getVersion(), executor);
+                byte[] fileContentsPDF = descargarCfdiFileXsa(descargaCfdiRequestDto, accountDto.getVersion(), executor);
                 byte[] fileContentsXML = restClient.descargarCfdiFile(urlXml);
 
                 response.setFileName(buildFileName(uuid, FileType.ZIP.extension));
@@ -558,14 +595,14 @@ public class WsImagenesServiceImpl implements WsImagenesService {
                 response.setDigitalDate(digitalDate);
 
                 response.setFileData(createZip(fileContentsPDF, buildFileName(uuid, FileType.PDF.extension),
-                        fileContentsXML,  buildFileName(uuid , FileType.XML.extension)));
+                        fileContentsXML, buildFileName(uuid, FileType.XML.extension)));
                 return response;
-            }else{
+            } else {
                 byte[] fileContents = null;
                 if (descargaCfdiRequestDto.getFileType().equalsIgnoreCase(FileType.PDF.name())) {
                     LOG.info("descargaPDF: {}", uuid);
-                    fileContents = descargarCfdiFileXsa(descargaCfdiRequestDto,accountDto.getVersion(), executor);
-                }else{
+                    fileContents = descargarCfdiFileXsa(descargaCfdiRequestDto, accountDto.getVersion(), executor);
+                } else {
                     LOG.info("descargaXML: {}", uuid);
                     fileContents = restClient.descargarCfdiFile(buildUrlXsa(descargaCfdiRequestDto.getFileType(), uuid));
 
@@ -587,12 +624,12 @@ public class WsImagenesServiceImpl implements WsImagenesService {
         return response;
     }
 
-    private String buildUrlXsa(String fileType, String uuid){
+    private String buildUrlXsa(String fileType, String uuid) {
         return xsaUrl.toString()
                 + "/descargas?"
-                +"type="+fileType.toUpperCase()
-                +"&tipo=I"
-                +"&uuid="+uuid;
+                + "type=" + fileType.toUpperCase()
+                + "&tipo=I"
+                + "&uuid=" + uuid;
     }
 
     enum FileType {
@@ -623,11 +660,12 @@ public class WsImagenesServiceImpl implements WsImagenesService {
                     .orElse(null);
         }
     }
+
     public byte[] descargarCfdiFileXsa(DescargaCfdiRequestDto descargaCfdiRequestDto,
                                        TemplateContent templateContent,
                                        Long executor) {
-        DocumentResponseDto  responseDto  = null;
-        try{
+        DocumentResponseDto responseDto = null;
+        try {
             AccStmtRequestDto input = AccStmtRequestDto.builder()
                     .year(Long.valueOf(descargaCfdiRequestDto.getYear()))
                     .month(Long.valueOf(descargaCfdiRequestDto.getMonth()))
@@ -637,11 +675,11 @@ public class WsImagenesServiceImpl implements WsImagenesService {
                     .validity(Long.valueOf(descargaCfdiRequestDto.getValidityId())) //CatalogIdsEnum.CON_VALIDEZ.getId()
                     .build();
 
-            responseDto = docsService.exsDocumenter(input,templateContent,
+            responseDto = docsService.exsDocumenter(input, templateContent,
                     executor);
 
             return responseDto.getFileContent();
-        }catch (Exception e){
+        } catch (Exception e) {
             LOG.error("Error al obtener el cfdi: ", e);
         }
         return null;
@@ -666,7 +704,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
         }
     }
 
-    private String buildFileName(String uuid, String fileType){
+    private String buildFileName(String uuid, String fileType) {
         return uuid + "." + fileType.toLowerCase();
     }
 }
