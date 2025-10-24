@@ -16,6 +16,10 @@
 			<module name="com.fasterxml.jackson.datatype.jackson-datatype-jsr310" />
 			
 			<module name="org.hibernate" />
+			<!-- Forzar las bibliotecas JAXB empacadas en el WAR -->
+			<module name="javax.xml.bind.api" />
+			<module name="com.sun.xml.bind" />
+			<module name="com.sun.xml.ws" />
 		</exclusions>
 		<dependencies>
 			<module name="org.apache.cxf" />

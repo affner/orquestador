@@ -496,6 +496,8 @@ public class WsImagenesServiceImpl implements WsImagenesService {
 
     @Override
     public ResponseEntity<String> bypass(String rawXml, String op) {
+
+        this.client = new PassthroughSoapClient(idPortalUrl.toString());
         // Reenvío íntegro al sistema legacy
         try {
             LOG.info("peticion a idPortal: {}", idPortalUrl);
@@ -671,7 +673,7 @@ public class WsImagenesServiceImpl implements WsImagenesService {
                     .month(Long.valueOf(descargaCfdiRequestDto.getMonth()))
                     .business(Long.valueOf(descargaCfdiRequestDto.getBusinessId()))
                     .contract(Long.valueOf(descargaCfdiRequestDto.getContractId()))
-                    .credit(Long.valueOf(descargaCfdiRequestDto.getCredit()))
+//                    .credit(Long.valueOf(descargaCfdiRequestDto.getCredit()))
                     .validity(Long.valueOf(descargaCfdiRequestDto.getValidityId())) //CatalogIdsEnum.CON_VALIDEZ.getId()
                     .build();
 

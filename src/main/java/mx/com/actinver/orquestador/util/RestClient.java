@@ -6,16 +6,9 @@ import lombok.Setter;
 import mx.com.actinver.common.exception.ConsecutiveServerErrorLimitReachedException;
 import mx.com.actinver.orquestador.dto.DescargaCfdiResponseDto;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.ParameterizedTypeReference;
@@ -26,7 +19,6 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import javax.annotation.PostConstruct;
-import javax.net.ssl.SSLContext;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -48,22 +40,9 @@ public class RestClient {
     @PostConstruct
     private void init() {
         try {
-            // 1) Construye un SSLContext que confía en TODO
-            SSLContext sslContext = SSLContextBuilder.create()
-                    .loadTrustMaterial((chain, authType) -> true)
-                    .build();
-// 2) Crea el socket factory para HTTPS usando tu SSLContext y sin hostname check
-            SSLConnectionSocketFactory sslSocketFactory =
-                    new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
-// 3) Registra los socket factories para HTTP y HTTPS
-            Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder
-                    .<ConnectionSocketFactory>create()
-                    .register("http", PlainConnectionSocketFactory.getSocketFactory())
-                    .register("https", sslSocketFactory)
-                    .build();
-// 4) Usa ese registry en tu ConnectionManager
+            // Pool de conexiones
             PoolingHttpClientConnectionManager connMgr =
-                    new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+                    new PoolingHttpClientConnectionManager();
             connMgr.setMaxTotal(400);
             connMgr.setDefaultMaxPerRoute(300);
             // Valida conexiones tras 10s inactivas
